@@ -26,6 +26,7 @@ class NR_Meta_CAPI {
 
         $expected_form_id = (int) NR_Meta_Settings::get('form_id');
         if ($form_id && $expected_form_id && $form_id !== $expected_form_id) {
+            NR_Logger::log('NR Meta CAPI SKIPPED - Email: ' . $email . ', Reason: wrong form ID (expected ' . $expected_form_id . ', got ' . $form_id . ')');
             return new WP_REST_Response(['error' => 'wrong form'], 400);
         }
 
@@ -45,7 +46,7 @@ class NR_Meta_CAPI {
         $test_event_code = NR_Meta_Settings::get('test_event_code');
 
         if (empty($pixel_id) || empty($access_token)) {
-            if ($debug) NR_Logger::log('NR Meta CAPI skipped: missing Pixel ID or access token');
+            NR_Logger::log('NR Meta CAPI SKIPPED - Email: ' . $email . ', Reason: missing Pixel ID or access token');
             return;
         }
 
@@ -110,11 +111,18 @@ class NR_Meta_CAPI {
         ]);
 
         if (is_wp_error($response)) {
-            NR_Logger::log('NR Meta CAPI WP Error: ' . $response->get_error_message());
+            NR_Logger::log('NR Meta CAPI FAILED - Email: ' . $email . ', Error: ' . $response->get_error_message());
             return;
         }
 
-        if ($debug) NR_Logger::log('NR Meta CAPI status: ' . wp_remote_retrieve_response_code($response));
+        $http_code = wp_remote_retrieve_response_code($response);
+        $response_body = wp_remote_retrieve_body($response);
+
+        if ($http_code >= 200 && $http_code < 300) {
+            NR_Logger::log('NR Meta CAPI SUCCESS - Email: ' . $email . ', HTTP Status: ' . $http_code);
+        } else {
+            NR_Logger::log('NR Meta CAPI FAILED - Email: ' . $email . ', HTTP Status: ' . $http_code . ', Response: ' . $response_body);
+        }
     }
 
     private static function hash_email($email) {
