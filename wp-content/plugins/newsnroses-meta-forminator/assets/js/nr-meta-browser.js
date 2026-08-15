@@ -18,6 +18,7 @@
 
     fetch('/wp-json/newsnroses/v1/meta-subscribe', {
       method: 'POST',
+      keepalive: true,
       headers: {
         'Content-Type': 'application/json',
         'X-WP-Nonce': nnMeta.nonce
