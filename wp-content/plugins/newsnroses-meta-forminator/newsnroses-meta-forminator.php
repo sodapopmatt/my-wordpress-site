@@ -2,7 +2,7 @@
 /**
  * Plugin Name: News N' Roses Meta Forminator
  * Description: Sends Meta browser and server CompleteRegistration events for Forminator submissions.
- * Version: 2.0.1
+ * Version: 2.0.2
  * Author: Matthew Ramirez
  */
 
