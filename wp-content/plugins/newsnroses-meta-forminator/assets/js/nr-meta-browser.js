@@ -38,6 +38,9 @@
     });
 
     if (typeof fbq === 'function') {
+      if (capturedEmail) {
+        fbq('set', 'userData', { em: capturedEmail });
+      }
       fbq('track', 'CompleteRegistration', {}, { eventID: eventId });
       console.log('NR browser pixel fired:', eventId);
     } else {
