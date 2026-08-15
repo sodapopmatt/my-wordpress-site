@@ -2,7 +2,7 @@
 /**
  * Plugin Name: News N' Roses Meta Forminator
  * Description: Sends Meta browser and server CompleteRegistration events for Forminator submissions.
- * Version: 2.0.3
+ * Version: 2.0.4
  * Author: Matthew Ramirez
  */
 
@@ -28,7 +28,7 @@ add_action('wp_enqueue_scripts', function () {
             'nr-meta-browser',
             plugin_dir_url(__FILE__) . 'assets/js/nr-meta-browser.js',
             ['jquery'],
-            '2.0.3',
+            '2.0.4',
             true
         );
 

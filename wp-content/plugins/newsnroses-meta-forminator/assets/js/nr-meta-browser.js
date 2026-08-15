@@ -39,7 +39,7 @@
 
     if (typeof fbq === 'function') {
       if (capturedEmail) {
-        fbq('set', 'userData', { em: capturedEmail });
+        fbq('init', '960459449899072', { em: capturedEmail });
       }
       fbq('track', 'CompleteRegistration', {}, { eventID: eventId });
       console.log('NR browser pixel fired:', eventId);
