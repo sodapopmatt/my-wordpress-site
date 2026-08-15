@@ -1,0 +1,57 @@
+name: Deploy to WordPress server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy wp-content via SFTP
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build clean staging folder
+        run: |
+          mkdir -p staging
+          rsync -a \
+            --exclude 'node_modules' \
+            --exclude 'assets/src' \
+            --exclude 'tests' \
+            --exclude '.phpunit.cache' \
+            --exclude '.phpunit.result.cache' \
+            --exclude 'phpunit.xml.dist' \
+            --exclude 'package.json' \
+            --exclude 'package-lock.json' \
+            --exclude 'composer.json' \
+            --exclude 'composer.lock' \
+            --exclude 'composer.phar' \
+            --exclude '.backups' \
+            --exclude 'vendor/bin' \
+            --exclude 'vendor/phpunit' \
+            --exclude 'vendor/sebastian' \
+            --exclude 'vendor/squizlabs' \
+            --exclude 'vendor/phpcsstandards' \
+            --exclude 'vendor/wp-coding-standards' \
+            --exclude 'vendor/dealerdirect' \
+            --exclude 'vendor/myclabs' \
+            --exclude 'vendor/nikic' \
+            --exclude 'vendor/phar-io' \
+            --exclude 'vendor/theseer' \
+            --exclude '.DS_Store' \
+            --exclude 'Thumbs.db' \
+            wp-content/ staging/
+
+      - name: Upload via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.6
+        with:
+          username: ${{ secrets.SFTP_USERNAME }}
+          server: ${{ secrets.SFTP_SERVER }}
+          port: ${{ secrets.SFTP_PORT }}
+          password: ${{ secrets.SFTP_PASSWORD }}
+          local_path: './staging/*'
+          remote_path: '/wp-content'
+          sftp_only: true
+          delete_remote_files: false
