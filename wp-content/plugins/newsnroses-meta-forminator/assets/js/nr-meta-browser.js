@@ -12,6 +12,10 @@
   $(document).on('forminator:form:submit:success', function (event, formId) {
     var eventId = 'nr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
 
+    if (!capturedEmail) {
+      capturedEmail = $('input[name="email-1"]').val() || '';
+    }
+
     console.log('NR forminator success fired');
     console.log('NR browser eventID:', eventId);
     console.log('NR email at success:', capturedEmail);
