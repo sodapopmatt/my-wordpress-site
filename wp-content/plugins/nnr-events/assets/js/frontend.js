@@ -27,60 +27,73 @@
 
 	observeReveal();
 
-	// Scroll progress rail: a stack of small ticks that fill in as the visitor scrolls the page.
-	( function () {
-		var wrap = document.querySelector( '.nnr-events-wrap' );
-		if ( ! wrap ) {
+	// Scroll progress rail: one tick per event card; a tick lights up as you scroll past its card.
+	var scrollRailWrap = document.querySelector( '.nnr-events-wrap' );
+	var scrollRail = null;
+	var scrollRailTicks = [];
+
+	function rebuildScrollRail() {
+		if ( ! scrollRailWrap ) {
 			return;
 		}
 
-		var TICK_COUNT = 10;
-		var rail = document.createElement( 'div' );
-		rail.className = 'nnr-events__scroll-rail';
-		rail.setAttribute( 'aria-hidden', 'true' );
+		if ( ! scrollRail ) {
+			scrollRail = document.createElement( 'div' );
+			scrollRail.className = 'nnr-events__scroll-rail';
+			scrollRail.setAttribute( 'aria-hidden', 'true' );
+			scrollRailWrap.appendChild( scrollRail );
+		}
 
-		var ticks = [];
-		for ( var i = 0; i < TICK_COUNT; i++ ) {
+		scrollRail.innerHTML = '';
+		scrollRailTicks = [];
+
+		scrollRailWrap.querySelectorAll( '.nnr-event-card' ).forEach( function () {
 			var tick = document.createElement( 'span' );
 			tick.className = 'nnr-events__scroll-rail-tick';
-			rail.appendChild( tick );
-			ticks.push( tick );
+			scrollRail.appendChild( tick );
+			scrollRailTicks.push( tick );
+		} );
+
+		updateScrollRail();
+	}
+
+	var scrollRailTicking = false;
+
+	function updateScrollRail() {
+		scrollRailTicking = false;
+
+		if ( ! scrollRail || ! scrollRailTicks.length ) {
+			return;
 		}
 
-		wrap.appendChild( rail );
-
-		var ticking = false;
-
-		function update() {
-			ticking = false;
-
-			var scrollable = document.documentElement.scrollHeight - window.innerHeight;
-			if ( scrollable <= 0 ) {
-				rail.hidden = true;
-				return;
-			}
-			rail.hidden = false;
-
-			var progress = Math.min( 1, Math.max( 0, window.scrollY / scrollable ) );
-			var activeIndex = Math.round( progress * ( TICK_COUNT - 1 ) );
-
-			ticks.forEach( function ( tick, index ) {
-				tick.classList.toggle( 'is-active', index === activeIndex );
-			} );
+		var scrollable = document.documentElement.scrollHeight - window.innerHeight;
+		if ( scrollable <= 0 ) {
+			scrollRail.hidden = true;
+			return;
 		}
+		scrollRail.hidden = false;
 
-		function onScroll() {
-			if ( ticking ) {
-				return;
-			}
-			ticking = true;
-			window.requestAnimationFrame( update );
+		var progress = Math.min( 1, Math.max( 0, window.scrollY / scrollable ) );
+		var activeIndex = Math.round( progress * ( scrollRailTicks.length - 1 ) );
+
+		scrollRailTicks.forEach( function ( tick, index ) {
+			tick.classList.toggle( 'is-active', index === activeIndex );
+		} );
+	}
+
+	function onScrollRailChange() {
+		if ( scrollRailTicking ) {
+			return;
 		}
+		scrollRailTicking = true;
+		window.requestAnimationFrame( updateScrollRail );
+	}
 
-		window.addEventListener( 'scroll', onScroll, { passive: true } );
-		window.addEventListener( 'resize', onScroll );
-		update();
-	} )();
+	if ( scrollRailWrap ) {
+		rebuildScrollRail();
+		window.addEventListener( 'scroll', onScrollRailChange, { passive: true } );
+		window.addEventListener( 'resize', onScrollRailChange );
+	}
 
 	function fetchEvents( params ) {
 		var body = new URLSearchParams();
@@ -138,6 +151,7 @@
 				if ( json.data.html ) {
 					grid.insertAdjacentHTML( 'beforeend', json.data.html );
 					observeReveal( grid );
+					rebuildScrollRail();
 				}
 
 				if ( json.data.has_more ) {
@@ -199,6 +213,7 @@
 				grid.classList.remove( 'is-loading' );
 				grid.innerHTML = json.data.html || '';
 				observeReveal( grid );
+				rebuildScrollRail();
 
 				loadMoreBtn.dataset.category = category;
 				loadMoreBtn.dataset.offset = loadMoreBtn.dataset.limit;
