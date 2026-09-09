@@ -12,6 +12,21 @@ class NNR_Shortcode {
 		add_shortcode( 'nnr_events', array( $this, 'render' ) );
 		add_action( 'wp_ajax_' . self::AJAX_ACTION, array( $this, 'ajax_load_more' ) );
 		add_action( 'wp_ajax_nopriv_' . self::AJAX_ACTION, array( $this, 'ajax_load_more' ) );
+		add_filter( 'excerpt_length', array( $this, 'excerpt_length' ) );
+		add_filter( 'excerpt_more', array( $this, 'excerpt_more' ) );
+	}
+
+	/**
+	 * Auto-generated excerpts (no manual excerpt set) default to a 55-word
+	 * cap with a "…" suffix. Events have no separate description field, so
+	 * that cap was silently clipping long event descriptions on the card.
+	 */
+	public function excerpt_length( $length ) {
+		return 'event' === get_post_type() ? 9999 : $length;
+	}
+
+	public function excerpt_more( $more ) {
+		return 'event' === get_post_type() ? '' : $more;
 	}
 
 	private function normalize_atts( $atts ) {
