@@ -1,0 +1,130 @@
+( function () {
+	function fetchEvents( params ) {
+		var body = new URLSearchParams();
+		body.set( 'action', 'nnr_load_more_events' );
+		Object.keys( params ).forEach( function ( key ) {
+			body.set( key, params[ key ] || '' );
+		} );
+
+		return fetch( window.NNREventsFrontend.ajaxUrl, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: body.toString(),
+			credentials: 'same-origin',
+		} )
+			.then( function ( response ) {
+				return response.json();
+			} )
+			.then( function ( json ) {
+				if ( ! json.success ) {
+					throw new Error( 'nnr_load_more_events failed' );
+				}
+				return json;
+			} );
+	}
+
+	// "Load More": appends the next page of results.
+	document.addEventListener( 'click', function ( e ) {
+		var btn = e.target.closest( '.nnr-events__load-more' );
+		if ( ! btn ) {
+			return;
+		}
+		e.preventDefault();
+
+		var wrap = btn.closest( '.nnr-events-wrap' );
+		var grid = wrap ? wrap.querySelector( '.nnr-events' ) : null;
+		var loadMoreWrap = wrap ? wrap.querySelector( '.nnr-events__load-more-wrap' ) : null;
+		if ( ! grid || ! window.NNREventsFrontend ) {
+			return;
+		}
+
+		var originalText = btn.textContent;
+		btn.disabled = true;
+		btn.textContent = window.NNREventsFrontend.loadingText;
+
+		fetchEvents( {
+			nonce: btn.dataset.nonce,
+			offset: btn.dataset.offset,
+			limit: btn.dataset.limit,
+			category: btn.dataset.category,
+			layout: btn.dataset.layout,
+			image: btn.dataset.image,
+			color: btn.dataset.color,
+		} )
+			.then( function ( json ) {
+				if ( json.data.html ) {
+					grid.insertAdjacentHTML( 'beforeend', json.data.html );
+				}
+
+				if ( json.data.has_more ) {
+					btn.dataset.offset = String(
+						parseInt( btn.dataset.offset, 10 ) + parseInt( btn.dataset.limit, 10 )
+					);
+					btn.disabled = false;
+					btn.textContent = originalText;
+				} else {
+					btn.hidden = true;
+					if ( loadMoreWrap ) {
+						loadMoreWrap.hidden = true;
+					}
+				}
+			} )
+			.catch( function () {
+				btn.disabled = false;
+				btn.textContent = originalText;
+			} );
+	} );
+
+	// Category filter pills: replaces the whole grid with the filtered set.
+	document.addEventListener( 'click', function ( e ) {
+		var pill = e.target.closest( '.nnr-events__filter-pill' );
+		if ( ! pill || pill.classList.contains( 'is-active' ) ) {
+			return;
+		}
+		e.preventDefault();
+
+		var filtersBar = pill.closest( '.nnr-events__filters' );
+		var wrap = pill.closest( '.nnr-events-wrap' );
+		var grid = wrap ? wrap.querySelector( '.nnr-events' ) : null;
+		var loadMoreBtn = wrap ? wrap.querySelector( '.nnr-events__load-more' ) : null;
+		var loadMoreWrap = wrap ? wrap.querySelector( '.nnr-events__load-more-wrap' ) : null;
+		if ( ! grid || ! loadMoreBtn || ! window.NNREventsFrontend ) {
+			return;
+		}
+
+		filtersBar.querySelectorAll( '.nnr-events__filter-pill' ).forEach( function ( p ) {
+			p.classList.remove( 'is-active' );
+			p.setAttribute( 'aria-pressed', 'false' );
+		} );
+		pill.classList.add( 'is-active' );
+		pill.setAttribute( 'aria-pressed', 'true' );
+
+		var category = pill.dataset.category || '';
+		grid.classList.add( 'is-loading' );
+
+		fetchEvents( {
+			nonce: loadMoreBtn.dataset.nonce,
+			offset: 0,
+			limit: loadMoreBtn.dataset.limit,
+			category: category,
+			layout: loadMoreBtn.dataset.layout,
+			image: loadMoreBtn.dataset.image,
+			color: loadMoreBtn.dataset.color,
+		} )
+			.then( function ( json ) {
+				grid.classList.remove( 'is-loading' );
+				grid.innerHTML = json.data.html || '';
+
+				loadMoreBtn.dataset.category = category;
+				loadMoreBtn.dataset.offset = loadMoreBtn.dataset.limit;
+
+				loadMoreBtn.hidden = ! json.data.has_more;
+				if ( loadMoreWrap ) {
+					loadMoreWrap.hidden = ! json.data.has_more;
+				}
+			} )
+			.catch( function () {
+				grid.classList.remove( 'is-loading' );
+			} );
+	} );
+} )();

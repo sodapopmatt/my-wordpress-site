@@ -5,11 +5,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class NNR_Shortcode {
 
+	const AJAX_ACTION = 'nnr_load_more_events';
+	const NONCE_ACTION = 'nnr_load_more';
+
 	public function __construct() {
 		add_shortcode( 'nnr_events', array( $this, 'render' ) );
+		add_action( 'wp_ajax_' . self::AJAX_ACTION, array( $this, 'ajax_load_more' ) );
+		add_action( 'wp_ajax_nopriv_' . self::AJAX_ACTION, array( $this, 'ajax_load_more' ) );
 	}
 
-	public function render( $atts ) {
+	private function normalize_atts( $atts ) {
 		$atts = shortcode_atts(
 			array(
 				'category' => '',
@@ -18,20 +23,186 @@ class NNR_Shortcode {
 				'layout'   => 'grid',
 				'image'    => 'show',
 				'color'    => '',
+				'filter'   => 'none',
 			),
 			$atts,
 			'nnr_events'
 		);
 
-		$limit   = max( 1, (int) $atts['limit'] );
-		$columns = min( 4, max( 1, (int) $atts['columns'] ) );
-		$layout  = ( 'list' === $atts['layout'] ) ? 'list' : 'grid';
-		$atts['image'] = ( 'hide' === $atts['image'] ) ? 'hide' : 'show';
-		$color   = sanitize_hex_color( $atts['color'] );
+		$atts['category'] = $this->parse_categories( $atts['category'] );
+		$atts['limit']    = min( 20, max( 1, (int) $atts['limit'] ) );
+		$atts['columns']  = min( 4, max( 1, (int) $atts['columns'] ) );
+		$atts['layout']   = ( 'list' === $atts['layout'] ) ? 'list' : 'grid';
+		$atts['image']    = ( 'hide' === $atts['image'] ) ? 'hide' : 'show';
+		$atts['filter']   = ( 'pills' === $atts['filter'] ) ? 'pills' : 'none';
 
+		$color = sanitize_hex_color( $atts['color'] );
+		if ( ! $color ) {
+			$color = get_option( NNR_Settings::OPTION_NAME, '' );
+		}
+		$atts['color'] = $color;
+
+		return $atts;
+	}
+
+	/**
+	 * Accepts a comma-separated list of category slugs (or a single slug)
+	 * and returns a clean array of valid, non-empty slugs.
+	 */
+	private function parse_categories( $raw ) {
+		$slugs = array();
+		foreach ( explode( ',', (string) $raw ) as $slug ) {
+			$slug = sanitize_title( trim( $slug ) );
+			if ( $slug && ! in_array( $slug, $slugs, true ) ) {
+				$slugs[] = $slug;
+			}
+		}
+		return $slugs;
+	}
+
+	public function render( $atts ) {
+		$atts  = $this->normalize_atts( $atts );
+		$query = $this->run_query( $atts, 0 );
+
+		if ( $query->have_posts() ) {
+			list( $cards_html, $events_for_schema ) = $this->render_cards( $query, $atts );
+			$has_more = $query->found_posts > $atts['limit'];
+		} else {
+			$cards_html        = $this->empty_state_html();
+			$events_for_schema = array();
+			$has_more          = false;
+		}
+
+		ob_start();
+		?>
+		<div class="nnr-events-wrap"<?php echo $this->wrapper_style( $atts ); ?>>
+			<?php if ( 'pills' === $atts['filter'] ) : ?>
+				<?php echo $this->render_filter_pills( $atts ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+			<?php endif; ?>
+			<div class="<?php echo esc_attr( $this->wrapper_class( $atts ) ); ?>">
+				<?php echo $cards_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+			</div>
+			<div class="nnr-events__load-more-wrap"<?php echo $has_more ? '' : ' hidden'; ?>>
+				<button
+					type="button"
+					class="nnr-events__load-more"
+					data-offset="<?php echo esc_attr( $atts['limit'] ); ?>"
+					data-limit="<?php echo esc_attr( $atts['limit'] ); ?>"
+					data-category="<?php echo esc_attr( implode( ',', $atts['category'] ) ); ?>"
+					data-layout="<?php echo esc_attr( $atts['layout'] ); ?>"
+					data-image="<?php echo esc_attr( $atts['image'] ); ?>"
+					data-color="<?php echo esc_attr( $atts['color'] ); ?>"
+					data-nonce="<?php echo esc_attr( wp_create_nonce( self::NONCE_ACTION ) ); ?>"
+					<?php echo $has_more ? '' : 'hidden'; ?>
+				>
+					<?php esc_html_e( 'Load More', 'nnr-events' ); ?>
+				</button>
+			</div>
+		</div>
+		<?php
+		$html = ob_get_clean();
+
+		$html .= $this->render_schema( $events_for_schema );
+
+		return $html;
+	}
+
+	/**
+	 * Renders an "All" pill (resetting to whatever category restriction the
+	 * shortcode/block itself was given) plus one pill per category. If the
+	 * shortcode already restricts to specific categories, only those are
+	 * offered — "All" means "all of the ones this listing allows", not
+	 * every category on the site.
+	 */
+	private function render_filter_pills( $atts ) {
+		if ( ! empty( $atts['category'] ) ) {
+			$terms = array();
+			foreach ( $atts['category'] as $slug ) {
+				$term = get_term_by( 'slug', $slug, NNR_Taxonomy::TAXONOMY );
+				if ( $term ) {
+					$terms[] = $term;
+				}
+			}
+		} else {
+			$terms = get_terms(
+				array(
+					'taxonomy'   => NNR_Taxonomy::TAXONOMY,
+					'hide_empty' => true,
+				)
+			);
+			if ( ! is_array( $terms ) ) {
+				$terms = array();
+			}
+		}
+
+		if ( empty( $terms ) ) {
+			return '';
+		}
+
+		$all_value = implode( ',', $atts['category'] );
+
+		ob_start();
+		?>
+		<div class="nnr-events__filters" role="group" aria-label="<?php esc_attr_e( 'Filter events by category', 'nnr-events' ); ?>">
+			<button type="button" class="nnr-events__filter-pill is-active" data-category="<?php echo esc_attr( $all_value ); ?>" aria-pressed="true">
+				<?php esc_html_e( 'All', 'nnr-events' ); ?>
+			</button>
+			<?php foreach ( $terms as $term ) : ?>
+				<button type="button" class="nnr-events__filter-pill" data-category="<?php echo esc_attr( $term->slug ); ?>" aria-pressed="false">
+					<?php echo esc_html( $term->name ); ?>
+				</button>
+			<?php endforeach; ?>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	private function empty_state_html() {
+		return '<p class="nnr-events__empty">' . esc_html__( 'No upcoming events right now — check back soon.', 'nnr-events' ) . '</p>';
+	}
+
+	public function ajax_load_more() {
+		check_ajax_referer( self::NONCE_ACTION, 'nonce' );
+
+		$atts = $this->normalize_atts(
+			array(
+				'category' => isset( $_POST['category'] ) ? wp_unslash( $_POST['category'] ) : '',
+				'layout'   => isset( $_POST['layout'] ) ? wp_unslash( $_POST['layout'] ) : 'grid',
+				'image'    => isset( $_POST['image'] ) ? wp_unslash( $_POST['image'] ) : 'show',
+				'color'    => isset( $_POST['color'] ) ? wp_unslash( $_POST['color'] ) : '',
+				'limit'    => isset( $_POST['limit'] ) ? absint( $_POST['limit'] ) : 5,
+			)
+		);
+
+		$offset = isset( $_POST['offset'] ) ? absint( $_POST['offset'] ) : 0;
+
+		$query = $this->run_query( $atts, $offset );
+
+		if ( ! $query->have_posts() ) {
+			wp_send_json_success(
+				array(
+					'html'     => 0 === $offset ? $this->empty_state_html() : '',
+					'has_more' => false,
+				)
+			);
+		}
+
+		list( $cards_html, $events_for_schema ) = $this->render_cards( $query, $atts );
+		unset( $events_for_schema );
+
+		wp_send_json_success(
+			array(
+				'html'     => $cards_html,
+				'has_more' => $query->found_posts > ( $offset + $atts['limit'] ),
+			)
+		);
+	}
+
+	private function run_query( $atts, $offset ) {
 		$query_args = NNR_Query::get_upcoming_args(
 			array(
-				'posts_per_page' => $limit,
+				'posts_per_page' => $atts['limit'],
+				'offset'         => $offset,
 			)
 		);
 
@@ -40,49 +211,48 @@ class NNR_Shortcode {
 				array(
 					'taxonomy' => NNR_Taxonomy::TAXONOMY,
 					'field'    => 'slug',
-					'terms'    => sanitize_title( $atts['category'] ),
+					'terms'    => $atts['category'],
 				),
 			);
 		}
 
-		$query = new WP_Query( $query_args );
+		return new WP_Query( $query_args );
+	}
 
-		if ( ! $query->have_posts() ) {
-			return '<p class="nnr-events__empty">' . esc_html__( 'No upcoming events right now — check back soon.', 'nnr-events' ) . '</p>';
-		}
-
-		$wrapper_class = 'nnr-events nnr-events--' . $layout;
-
-		$style_props = array();
-		if ( 'grid' === $layout ) {
-			$style_props[] = sprintf( '--nnr-columns:%d', $columns );
-		}
-		if ( $color ) {
-			$style_props[] = sprintf( '--nnr-accent:%s', $color );
-		}
-		$style = $style_props ? sprintf( ' style="%s;"', esc_attr( implode( ';', $style_props ) ) ) : '';
-
+	/**
+	 * Renders each post in $query through the event-card template.
+	 *
+	 * @return array [ string $html, array $events_for_schema ]
+	 */
+	private function render_cards( $query, $atts ) {
 		$events_for_schema = array();
 
 		ob_start();
-		?>
-		<div class="<?php echo esc_attr( $wrapper_class ); ?>"<?php echo $style; ?>>
-			<?php
-			while ( $query->have_posts() ) :
-				$query->the_post();
-				$event = $this->get_event_data( get_the_ID() );
-				$events_for_schema[] = $event;
-				include NNR_EVENTS_PATH . 'templates/parts/event-card.php';
-			endwhile;
-			wp_reset_postdata();
-			?>
-		</div>
-		<?php
+		while ( $query->have_posts() ) :
+			$query->the_post();
+			$event = $this->get_event_data( get_the_ID() );
+			$events_for_schema[] = $event;
+			include NNR_EVENTS_PATH . 'templates/parts/event-card.php';
+		endwhile;
+		wp_reset_postdata();
 		$html = ob_get_clean();
 
-		$html .= $this->render_schema( $events_for_schema );
+		return array( $html, $events_for_schema );
+	}
 
-		return $html;
+	private function wrapper_class( $atts ) {
+		return 'nnr-events nnr-events--' . $atts['layout'];
+	}
+
+	private function wrapper_style( $atts ) {
+		$style_props = array();
+		if ( 'grid' === $atts['layout'] ) {
+			$style_props[] = sprintf( '--nnr-columns:%d', $atts['columns'] );
+		}
+		if ( $atts['color'] ) {
+			$style_props[] = sprintf( '--nnr-accent:%s', $atts['color'] );
+		}
+		return $style_props ? sprintf( ' style="%s;"', esc_attr( implode( ';', $style_props ) ) ) : '';
 	}
 
 	private function get_event_data( $post_id ) {
@@ -101,6 +271,7 @@ class NNR_Shortcode {
 			'address'     => get_post_meta( $post_id, '_nnr_address', true ),
 			'price'       => get_post_meta( $post_id, '_nnr_price', true ),
 			'ticket_url'  => get_post_meta( $post_id, '_nnr_ticket_url', true ),
+			'button_text' => get_post_meta( $post_id, '_nnr_button_text', true ),
 		);
 	}
 

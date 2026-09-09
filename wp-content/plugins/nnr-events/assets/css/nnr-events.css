@@ -1,6 +1,6 @@
 /* NNR Events — scoped under .nnr-events, safe to drop into any Salient page. */
 
-.nnr-events {
+.nnr-events-wrap {
 	--nnr-columns: 3;
 	--nnr-accent: #a13a4c;
 	--nnr-accent-hover: color-mix(in srgb, var(--nnr-accent) 80%, black);
@@ -10,7 +10,9 @@
 	--nnr-text-muted: #6f625c;
 	--nnr-badge-bg: #eaf0dd;
 	--nnr-badge-text: #4d611f;
+}
 
+.nnr-events {
 	display: grid;
 	grid-template-columns: repeat(var(--nnr-columns), 1fr);
 	gap: 1.4rem;
@@ -25,6 +27,78 @@
 	color: var(--nnr-text-muted);
 }
 
+.nnr-events__filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-bottom: 1.4rem;
+}
+
+.nnr-events__filter-pill {
+	font-family: inherit;
+	font-size: 0.82rem;
+	font-weight: 600;
+	color: var(--nnr-text-muted);
+	background: var(--nnr-surface);
+	border: 1px solid var(--nnr-border);
+	border-radius: 999px;
+	padding: 0.4rem 0.95rem;
+	cursor: pointer;
+	transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.nnr-events__filter-pill:hover,
+.nnr-events__filter-pill:focus {
+	border-color: var(--nnr-accent);
+	color: var(--nnr-accent);
+}
+
+.nnr-events__filter-pill.is-active {
+	background: var(--nnr-accent);
+	border-color: var(--nnr-accent);
+	color: #fff;
+}
+
+.nnr-events.is-loading {
+	opacity: 0.5;
+	transition: opacity 0.15s ease;
+}
+
+.nnr-events__load-more-wrap[hidden],
+.nnr-events__load-more[hidden] {
+	display: none;
+}
+
+.nnr-events__load-more-wrap {
+	display: flex;
+	justify-content: center;
+	margin-top: 1.6rem;
+}
+
+.nnr-events__load-more {
+	font-family: inherit;
+	font-size: 0.85rem;
+	font-weight: 700;
+	color: var(--nnr-accent);
+	background: var(--nnr-surface);
+	border: 1px solid var(--nnr-accent);
+	border-radius: 999px;
+	padding: 0.55rem 1.4rem;
+	cursor: pointer;
+	transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nnr-events__load-more:hover,
+.nnr-events__load-more:focus {
+	background: var(--nnr-accent);
+	color: #fff;
+}
+
+.nnr-events__load-more:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
 .nnr-event-card {
 	display: flex;
 	flex-direction: column;
@@ -33,6 +107,11 @@
 	border-radius: 14px;
 	overflow: hidden;
 	box-shadow: 0 1px 2px rgba(36, 26, 23, 0.05), 0 8px 24px rgba(36, 26, 23, 0.06);
+	transition: border-color 0.15s ease;
+}
+
+.nnr-event-card:hover {
+	border-color: var(--nnr-accent);
 }
 
 .nnr-events--list .nnr-event-card {
@@ -50,6 +129,12 @@
 .nnr-events--list .nnr-event-card__image {
 	width: 140px;
 	height: auto;
+	align-self: stretch;
+}
+
+.nnr-events--list .nnr-event-card__body {
+	padding: 0.75rem 1.1rem 0.85rem;
+	gap: 0.3rem;
 }
 
 .nnr-event-card__body {
@@ -67,8 +152,15 @@
 	gap: 0.5rem;
 }
 
+.nnr-event-card__when {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-width: 0;
+}
+
 .nnr-event-card__date {
-	font-size: 0.72rem;
+	font-size: 0.85rem;
 	font-weight: 700;
 	letter-spacing: 0.07em;
 	text-transform: uppercase;
@@ -97,7 +189,8 @@
 
 .nnr-event-card__venue {
 	font-size: 0.88rem;
-	color: var(--nnr-text-muted);
+	font-weight: 600;
+	color: var(--nnr-text);
 }
 
 .nnr-event-card__addr {
@@ -126,6 +219,29 @@
 	color: var(--nnr-text);
 }
 
+.nnr-event-card__ics {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 0.85rem;
+	height: 0.85rem;
+	color: var(--nnr-accent);
+	flex-shrink: 0;
+	opacity: 0.75;
+	position: relative;
+	top: -1px;
+}
+
+.nnr-event-card__ics svg {
+	width: 100%;
+	height: 100%;
+}
+
+.nnr-event-card__ics:hover,
+.nnr-event-card__ics:focus {
+	opacity: 1;
+}
+
 .nnr-event-card__cta {
 	display: inline-flex;
 	align-items: center;
@@ -147,13 +263,13 @@
 }
 
 @media (max-width: 900px) {
-	.nnr-events {
+	.nnr-events:not(.nnr-events--list) {
 		grid-template-columns: repeat(2, 1fr);
 	}
 }
 
 @media (max-width: 620px) {
-	.nnr-events {
+	.nnr-events:not(.nnr-events--list) {
 		grid-template-columns: 1fr;
 	}
 
@@ -168,7 +284,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.nnr-event-card__cta {
+	.nnr-event-card__cta,
+	.nnr-event-card {
 		transition: none;
 	}
 }

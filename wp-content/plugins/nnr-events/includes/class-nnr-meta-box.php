@@ -20,7 +20,8 @@ class NNR_Meta_Box {
 		'_nnr_venue'           => array( 'label' => 'Venue Name', 'type' => 'text' ),
 		'_nnr_address'         => array( 'label' => 'Address', 'type' => 'text' ),
 		'_nnr_price'           => array( 'label' => 'Price', 'type' => 'text' ),
-		'_nnr_ticket_url'      => array( 'label' => 'Ticket / More Info URL', 'type' => 'url' ),
+		'_nnr_ticket_url'      => array( 'label' => 'URL', 'type' => 'url' ),
+		'_nnr_button_text'     => array( 'label' => 'Button Text', 'type' => 'text' ),
 	);
 
 	public function __construct() {
@@ -87,10 +88,17 @@ class NNR_Meta_Box {
 					<td><input type="text" id="_nnr_price" name="_nnr_price" value="<?php echo esc_attr( $values['_nnr_price'] ); ?>" class="regular-text" placeholder="Free, $10, $15-20" /></td>
 				</tr>
 				<tr>
-					<th><label for="_nnr_ticket_url"><?php esc_html_e( 'Ticket / More Info URL', 'nnr-events' ); ?></label></th>
+					<th><label for="_nnr_ticket_url"><?php esc_html_e( 'URL', 'nnr-events' ); ?></label></th>
 					<td>
 						<input type="url" id="_nnr_ticket_url" name="_nnr_ticket_url" value="<?php echo esc_attr( $values['_nnr_ticket_url'] ); ?>" class="regular-text" placeholder="https://" required />
-						<p class="description"><?php esc_html_e( 'Where the "Get Tickets" button on the front end will link to.', 'nnr-events' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Where the ticket button on the front end will link to.', 'nnr-events' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="_nnr_button_text"><?php esc_html_e( 'Button Text', 'nnr-events' ); ?></label></th>
+					<td>
+						<input type="text" id="_nnr_button_text" name="_nnr_button_text" value="<?php echo esc_attr( $values['_nnr_button_text'] ); ?>" class="regular-text" placeholder="Get Tickets" />
+						<p class="description"><?php esc_html_e( 'Leave blank to use the default "Get Tickets" label.', 'nnr-events' ); ?></p>
 					</td>
 				</tr>
 			</tbody>

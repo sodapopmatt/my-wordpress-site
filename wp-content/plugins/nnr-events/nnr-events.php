@@ -20,12 +20,24 @@ require_once NNR_EVENTS_PATH . 'includes/class-nnr-taxonomy.php';
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-meta-box.php';
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-query.php';
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-shortcode.php';
+require_once NNR_EVENTS_PATH . 'includes/class-nnr-settings.php';
+require_once NNR_EVENTS_PATH . 'includes/class-nnr-shortcode-page.php';
+require_once NNR_EVENTS_PATH . 'includes/class-nnr-admin-list.php';
+require_once NNR_EVENTS_PATH . 'includes/class-nnr-ics.php';
+require_once NNR_EVENTS_PATH . 'includes/class-nnr-duplicate.php';
+require_once NNR_EVENTS_PATH . 'includes/class-nnr-block.php';
 
 function nnr_events_init() {
 	new NNR_CPT();
 	new NNR_Taxonomy();
 	new NNR_Meta_Box();
 	new NNR_Shortcode();
+	new NNR_Settings();
+	new NNR_Shortcode_Page();
+	new NNR_Admin_List();
+	new NNR_ICS();
+	new NNR_Duplicate();
+	new NNR_Block();
 }
 add_action( 'plugins_loaded', 'nnr_events_init' );
 
@@ -62,5 +74,6 @@ function nnr_events_enqueue_assets() {
 		array(),
 		NNR_EVENTS_VERSION
 	);
+	wp_enqueue_script( 'nnr-events-frontend' );
 }
 add_action( 'wp_enqueue_scripts', 'nnr_events_enqueue_assets' );
