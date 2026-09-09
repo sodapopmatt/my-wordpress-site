@@ -17,6 +17,7 @@ class NNR_Meta_Box {
 		'_nnr_end_date'        => array( 'label' => 'End Date', 'type' => 'date' ),
 		'_nnr_end_time'        => array( 'label' => 'End Time', 'type' => 'time' ),
 		'_nnr_recurring_weekly'=> array( 'label' => 'Recurring Weekly', 'type' => 'checkbox' ),
+		'_nnr_description'     => array( 'label' => 'Description', 'type' => 'textarea' ),
 		'_nnr_venue'           => array( 'label' => 'Venue Name', 'type' => 'text' ),
 		'_nnr_address'         => array( 'label' => 'Address', 'type' => 'text' ),
 		'_nnr_price'           => array( 'label' => 'Price', 'type' => 'text' ),
@@ -54,6 +55,10 @@ class NNR_Meta_Box {
 		if ( '' === $values['_nnr_button_text'] ) {
 			$values['_nnr_button_text'] = 'Website';
 		}
+		if ( '' === $values['_nnr_description'] ) {
+			// Events created before this field existed kept their description in the content editor.
+			$values['_nnr_description'] = wp_strip_all_tags( get_the_content( '', false, $post ) );
+		}
 		?>
 		<table class="form-table nnr-event-fields">
 			<tbody>
@@ -80,6 +85,13 @@ class NNR_Meta_Box {
 							<?php esc_html_e( 'This event repeats every week (e.g. a standing trivia night)', 'nnr-events' ); ?>
 						</label>
 						<p class="description"><?php esc_html_e( 'Recurring events always show as upcoming in listings, regardless of the start date above.', 'nnr-events' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="_nnr_description"><?php esc_html_e( 'Description', 'nnr-events' ); ?></label></th>
+					<td>
+						<textarea id="_nnr_description" name="_nnr_description" rows="4" class="large-text"><?php echo esc_textarea( $values['_nnr_description'] ); ?></textarea>
+						<p class="description"><?php esc_html_e( 'Shown on the event card. Not limited in length.', 'nnr-events' ); ?></p>
 					</td>
 				</tr>
 				<tr>
@@ -175,6 +187,9 @@ class NNR_Meta_Box {
 					break;
 				case 'url':
 					$value = esc_url_raw( $raw );
+					break;
+				case 'textarea':
+					$value = sanitize_textarea_field( $raw );
 					break;
 				default:
 					$value = sanitize_text_field( $raw );

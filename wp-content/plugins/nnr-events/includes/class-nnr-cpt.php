@@ -40,7 +40,7 @@ class NNR_CPT {
 				'show_in_admin_bar'   => true,
 				'show_in_rest'        => true,
 				'menu_icon'           => 'dashicons-calendar-alt',
-				'supports'            => array( 'title', 'editor', 'excerpt', 'thumbnail' ),
+				'supports'            => array( 'title', 'editor', 'thumbnail' ),
 				'capability_type'     => 'post',
 			)
 		);

@@ -12,21 +12,20 @@ class NNR_Shortcode {
 		add_shortcode( 'nnr_events', array( $this, 'render' ) );
 		add_action( 'wp_ajax_' . self::AJAX_ACTION, array( $this, 'ajax_load_more' ) );
 		add_action( 'wp_ajax_nopriv_' . self::AJAX_ACTION, array( $this, 'ajax_load_more' ) );
-		add_filter( 'excerpt_length', array( $this, 'excerpt_length' ) );
-		add_filter( 'excerpt_more', array( $this, 'excerpt_more' ) );
 	}
 
 	/**
-	 * Auto-generated excerpts (no manual excerpt set) default to a 55-word
-	 * cap with a "…" suffix. Events have no separate description field, so
-	 * that cap was silently clipping long event descriptions on the card.
+	 * The event description lives in its own meta field (not the post
+	 * excerpt) so it's never subject to WordPress's excerpt trimming/manual
+	 * excerpt quirks. Events created before this field existed fall back to
+	 * their content.
 	 */
-	public function excerpt_length( $length ) {
-		return 'event' === get_post_type() ? 9999 : $length;
-	}
-
-	public function excerpt_more( $more ) {
-		return 'event' === get_post_type() ? '' : $more;
+	public static function get_description( $post_id ) {
+		$description = get_post_meta( $post_id, '_nnr_description', true );
+		if ( '' !== $description ) {
+			return $description;
+		}
+		return wp_strip_all_tags( get_the_content( '', false, $post_id ) );
 	}
 
 	private function normalize_atts( $atts ) {
@@ -275,7 +274,7 @@ class NNR_Shortcode {
 			'id'          => $post_id,
 			'title'       => get_the_title( $post_id ),
 			'permalink'   => '',
-			'excerpt'     => get_the_excerpt( $post_id ),
+			'description' => self::get_description( $post_id ),
 			'image'       => get_the_post_thumbnail_url( $post_id, 'medium_large' ),
 			'start_date'  => get_post_meta( $post_id, '_nnr_start_date', true ),
 			'start_time'  => get_post_meta( $post_id, '_nnr_start_time', true ),
@@ -364,8 +363,8 @@ class NNR_Shortcode {
 				$node['image'] = array( $event['image'] );
 			}
 
-			if ( $event['excerpt'] ) {
-				$node['description'] = wp_strip_all_tags( $event['excerpt'] );
+			if ( $event['description'] ) {
+				$node['description'] = wp_strip_all_tags( $event['description'] );
 			}
 
 			$offer = $this->price_to_offer( $event['price'], $event['ticket_url'] );

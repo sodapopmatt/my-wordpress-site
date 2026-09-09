@@ -40,7 +40,7 @@ class NNR_ICS {
 		$venue       = get_post_meta( $post_id, '_nnr_venue', true );
 		$address     = get_post_meta( $post_id, '_nnr_address', true );
 		$location    = trim( $venue . ( $venue && $address ? ', ' : '' ) . $address );
-		$description = wp_strip_all_tags( get_the_excerpt( $post ) );
+		$description = wp_strip_all_tags( NNR_Shortcode::get_description( $post_id ) );
 
 		if ( $start_time ) {
 			$tz       = wp_timezone();
@@ -108,7 +108,7 @@ class NNR_ICS {
 		$address       = get_post_meta( $post_id, '_nnr_address', true );
 		$ticket_url    = get_post_meta( $post_id, '_nnr_ticket_url', true );
 		$location      = trim( $venue . ( $venue && $address ? ', ' : '' ) . $address );
-		$description   = wp_strip_all_tags( get_the_excerpt( $post ) );
+		$description   = wp_strip_all_tags( NNR_Shortcode::get_description( $post_id ) );
 
 		$tz      = wp_timezone();
 		$tz_name = $tz->getName();

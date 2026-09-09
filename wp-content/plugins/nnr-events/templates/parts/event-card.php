@@ -58,8 +58,8 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 			</div>
 		<?php endif; ?>
 
-		<?php if ( $event['excerpt'] ) : ?>
-			<p class="nnr-event-card__excerpt"><?php echo esc_html( $event['excerpt'] ); ?></p>
+		<?php if ( $event['description'] ) : ?>
+			<p class="nnr-event-card__excerpt"><?php echo esc_html( $event['description'] ); ?></p>
 		<?php endif; ?>
 
 		<div class="nnr-event-card__foot">
