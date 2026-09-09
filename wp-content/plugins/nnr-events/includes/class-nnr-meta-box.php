@@ -47,6 +47,13 @@ class NNR_Meta_Box {
 		foreach ( $this->fields as $key => $field ) {
 			$values[ $key ] = get_post_meta( $post->ID, $key, true );
 		}
+
+		if ( '' === $values['_nnr_price'] ) {
+			$values['_nnr_price'] = 'Free';
+		}
+		if ( '' === $values['_nnr_button_text'] ) {
+			$values['_nnr_button_text'] = 'Website';
+		}
 		?>
 		<table class="form-table nnr-event-fields">
 			<tbody>
@@ -103,6 +110,34 @@ class NNR_Meta_Box {
 				</tr>
 			</tbody>
 		</table>
+		<script>
+		( function () {
+			var startInput = document.getElementById( '_nnr_start_date' );
+			var endInput = document.getElementById( '_nnr_end_date' );
+			if ( ! startInput || ! endInput ) {
+				return;
+			}
+
+			var userEditedEnd = !! endInput.value;
+			var syncing = false;
+
+			endInput.addEventListener( 'input', function () {
+				if ( syncing ) {
+					return;
+				}
+				userEditedEnd = true;
+			} );
+
+			startInput.addEventListener( 'change', function () {
+				if ( userEditedEnd ) {
+					return;
+				}
+				syncing = true;
+				endInput.value = startInput.value;
+				syncing = false;
+			} );
+		} )();
+		</script>
 		<?php
 	}
 
