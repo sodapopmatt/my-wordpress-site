@@ -21,16 +21,25 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 					<span class="nnr-event-card__date"><?php echo esc_html( $date_label ); ?></span>
 				<?php endif; ?>
 				<?php if ( $event['start_date'] ) : ?>
-					<a class="nnr-event-card__ics" href="<?php echo esc_url( NNR_ICS::get_url( $event['id'] ) ); ?>" title="<?php esc_attr_e( 'Add to Calendar', 'nnr-events' ); ?>" aria-label="<?php esc_attr_e( 'Add to Calendar', 'nnr-events' ); ?>">
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-							<rect x="3" y="4" width="18" height="18" rx="2"></rect>
-							<line x1="16" y1="2" x2="16" y2="6"></line>
-							<line x1="8" y1="2" x2="8" y2="6"></line>
-							<line x1="3" y1="10" x2="21" y2="10"></line>
-							<line x1="12" y1="14" x2="12" y2="18"></line>
-							<line x1="10" y1="16" x2="14" y2="16"></line>
-						</svg>
-					</a>
+					<?php $google_url = NNR_ICS::get_google_url( $event['id'] ); ?>
+					<span class="nnr-event-card__cal">
+						<button type="button" class="nnr-event-card__ics" aria-haspopup="true" aria-expanded="false" title="<?php esc_attr_e( 'Add to Calendar', 'nnr-events' ); ?>" aria-label="<?php esc_attr_e( 'Add to Calendar', 'nnr-events' ); ?>">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+								<rect x="3" y="4" width="18" height="18" rx="2"></rect>
+								<line x1="16" y1="2" x2="16" y2="6"></line>
+								<line x1="8" y1="2" x2="8" y2="6"></line>
+								<line x1="3" y1="10" x2="21" y2="10"></line>
+								<line x1="12" y1="14" x2="12" y2="18"></line>
+								<line x1="10" y1="16" x2="14" y2="16"></line>
+							</svg>
+						</button>
+						<span class="nnr-event-card__cal-menu" hidden>
+							<?php if ( $google_url ) : ?>
+								<a href="<?php echo esc_url( $google_url ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Google Calendar', 'nnr-events' ); ?></a>
+							<?php endif; ?>
+							<a href="<?php echo esc_url( NNR_ICS::get_url( $event['id'] ) ); ?>"><?php esc_html_e( 'Apple / Outlook (.ics)', 'nnr-events' ); ?></a>
+						</span>
+					</span>
 				<?php endif; ?>
 			</span>
 			<?php if ( $event['recurring'] ) : ?>

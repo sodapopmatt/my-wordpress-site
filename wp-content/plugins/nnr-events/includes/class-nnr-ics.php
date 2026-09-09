@@ -17,6 +17,65 @@ class NNR_ICS {
 		return add_query_arg( 'nnr_ics_event', $post_id, home_url( '/' ) );
 	}
 
+	/**
+	 * Builds a "Google Calendar > Add event" link for direct one-click adding,
+	 * as an alternative to downloading the .ics file (which still covers
+	 * Apple Calendar, Outlook, and importing into Google Calendar manually).
+	 */
+	public static function get_google_url( $post_id ) {
+		$post = get_post( $post_id );
+		if ( ! $post ) {
+			return '';
+		}
+
+		$start_date = get_post_meta( $post_id, '_nnr_start_date', true );
+		if ( ! $start_date ) {
+			return '';
+		}
+
+		$start_time  = get_post_meta( $post_id, '_nnr_start_time', true );
+		$end_date    = get_post_meta( $post_id, '_nnr_end_date', true );
+		$end_time    = get_post_meta( $post_id, '_nnr_end_time', true );
+		$recurring   = '1' === get_post_meta( $post_id, '_nnr_recurring_weekly', true );
+		$venue       = get_post_meta( $post_id, '_nnr_venue', true );
+		$address     = get_post_meta( $post_id, '_nnr_address', true );
+		$location    = trim( $venue . ( $venue && $address ? ', ' : '' ) . $address );
+		$description = wp_strip_all_tags( get_the_excerpt( $post ) );
+
+		if ( $start_time ) {
+			$tz       = wp_timezone();
+			$start_dt = DateTime::createFromFormat( 'Y-m-d H:i', $start_date . ' ' . $start_time, $tz );
+			if ( $end_date ) {
+				$end_dt = DateTime::createFromFormat( 'Y-m-d H:i', $end_date . ' ' . ( $end_time ? $end_time : $start_time ), $tz );
+			} else {
+				$end_dt = clone $start_dt;
+				$end_dt->modify( '+1 hour' );
+			}
+			$start_dt->setTimezone( new DateTimeZone( 'UTC' ) );
+			$end_dt->setTimezone( new DateTimeZone( 'UTC' ) );
+			$dates = $start_dt->format( 'Ymd\THis\Z' ) . '/' . $end_dt->format( 'Ymd\THis\Z' );
+		} else {
+			$dtend_date = $end_date ? $end_date : $start_date;
+			$next       = DateTime::createFromFormat( 'Y-m-d', $dtend_date );
+			$next_str   = $next ? ( $next->modify( '+1 day' )->format( 'Ymd' ) ) : str_replace( '-', '', $dtend_date );
+			$dates      = str_replace( '-', '', $start_date ) . '/' . $next_str;
+		}
+
+		$args = array(
+			'action'   => 'TEMPLATE',
+			'text'     => $post->post_title,
+			'dates'    => $dates,
+			'details'  => $description,
+			'location' => $location,
+		);
+
+		if ( $recurring ) {
+			$args['recur'] = 'RRULE:FREQ=WEEKLY';
+		}
+
+		return 'https://calendar.google.com/calendar/render?' . http_build_query( $args );
+	}
+
 	public function maybe_serve_ics() {
 		if ( empty( $_GET['nnr_ics_event'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			return;

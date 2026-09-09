@@ -1,4 +1,87 @@
 ( function () {
+	// Scroll reveal: fade/slide event cards in as they enter the viewport.
+	var revealObserver = null;
+	if ( 'IntersectionObserver' in window && ! window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) {
+		revealObserver = new IntersectionObserver(
+			function ( entries ) {
+				entries.forEach( function ( entry ) {
+					if ( entry.isIntersecting ) {
+						entry.target.classList.add( 'is-visible' );
+						revealObserver.unobserve( entry.target );
+					}
+				} );
+			},
+			{ rootMargin: '0px 0px -10% 0px', threshold: 0.1 }
+		);
+	}
+
+	function observeReveal( root ) {
+		if ( ! revealObserver ) {
+			return;
+		}
+		( root || document ).querySelectorAll( '.nnr-event-card' ).forEach( function ( card ) {
+			card.classList.add( 'nnr-events-reveal' );
+			revealObserver.observe( card );
+		} );
+	}
+
+	observeReveal();
+
+	// Scroll progress rail: a stack of small ticks that fill in as the visitor scrolls the page.
+	( function () {
+		var wrap = document.querySelector( '.nnr-events-wrap' );
+		if ( ! wrap ) {
+			return;
+		}
+
+		var TICK_COUNT = 10;
+		var rail = document.createElement( 'div' );
+		rail.className = 'nnr-events__scroll-rail';
+		rail.setAttribute( 'aria-hidden', 'true' );
+
+		var ticks = [];
+		for ( var i = 0; i < TICK_COUNT; i++ ) {
+			var tick = document.createElement( 'span' );
+			tick.className = 'nnr-events__scroll-rail-tick';
+			rail.appendChild( tick );
+			ticks.push( tick );
+		}
+
+		wrap.appendChild( rail );
+
+		var ticking = false;
+
+		function update() {
+			ticking = false;
+
+			var scrollable = document.documentElement.scrollHeight - window.innerHeight;
+			if ( scrollable <= 0 ) {
+				rail.hidden = true;
+				return;
+			}
+			rail.hidden = false;
+
+			var progress = Math.min( 1, Math.max( 0, window.scrollY / scrollable ) );
+			var activeIndex = Math.round( progress * ( TICK_COUNT - 1 ) );
+
+			ticks.forEach( function ( tick, index ) {
+				tick.classList.toggle( 'is-active', index === activeIndex );
+			} );
+		}
+
+		function onScroll() {
+			if ( ticking ) {
+				return;
+			}
+			ticking = true;
+			window.requestAnimationFrame( update );
+		}
+
+		window.addEventListener( 'scroll', onScroll, { passive: true } );
+		window.addEventListener( 'resize', onScroll );
+		update();
+	} )();
+
 	function fetchEvents( params ) {
 		var body = new URLSearchParams();
 		body.set( 'action', 'nnr_load_more_events' );
@@ -54,6 +137,7 @@
 			.then( function ( json ) {
 				if ( json.data.html ) {
 					grid.insertAdjacentHTML( 'beforeend', json.data.html );
+					observeReveal( grid );
 				}
 
 				if ( json.data.has_more ) {
@@ -114,6 +198,7 @@
 			.then( function ( json ) {
 				grid.classList.remove( 'is-loading' );
 				grid.innerHTML = json.data.html || '';
+				observeReveal( grid );
 
 				loadMoreBtn.dataset.category = category;
 				loadMoreBtn.dataset.offset = loadMoreBtn.dataset.limit;
@@ -126,5 +211,46 @@
 			.catch( function () {
 				grid.classList.remove( 'is-loading' );
 			} );
+	} );
+
+	// "Add to Calendar" dropdown: toggle open/closed, close on outside click.
+	function closeAllCalMenus( except ) {
+		document.querySelectorAll( '.nnr-event-card__cal-menu' ).forEach( function ( menu ) {
+			if ( menu === except ) {
+				return;
+			}
+			menu.hidden = true;
+			var btn = menu.previousElementSibling;
+			if ( btn ) {
+				btn.setAttribute( 'aria-expanded', 'false' );
+			}
+		} );
+	}
+
+	document.addEventListener( 'click', function ( e ) {
+		var btn = e.target.closest( '.nnr-event-card__ics' );
+
+		if ( btn ) {
+			e.preventDefault();
+			var menu = btn.nextElementSibling;
+			if ( ! menu ) {
+				return;
+			}
+			var willOpen = menu.hidden;
+			closeAllCalMenus( willOpen ? menu : null );
+			menu.hidden = ! willOpen;
+			btn.setAttribute( 'aria-expanded', willOpen ? 'true' : 'false' );
+			return;
+		}
+
+		if ( ! e.target.closest( '.nnr-event-card__cal-menu' ) ) {
+			closeAllCalMenus();
+		}
+	} );
+
+	document.addEventListener( 'keydown', function ( e ) {
+		if ( 'Escape' === e.key ) {
+			closeAllCalMenus();
+		}
 	} );
 } )();
