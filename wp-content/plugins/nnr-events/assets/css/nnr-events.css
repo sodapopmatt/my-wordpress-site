@@ -205,11 +205,9 @@
 }
 
 .nnr-event-card__foot {
-	margin-top: auto;
 	display: flex;
 	align-items: center;
 	gap: 0.75rem;
-	padding-top: 0.6rem;
 }
 
 .nnr-event-card__price {
