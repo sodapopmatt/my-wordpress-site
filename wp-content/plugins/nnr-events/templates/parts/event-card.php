@@ -59,7 +59,7 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 		<?php endif; ?>
 
 		<?php if ( $event['description'] ) : ?>
-			<p class="nnr-event-card__excerpt"><?php echo esc_html( $event['description'] ); ?></p>
+			<div class="nnr-event-card__excerpt"><?php echo wp_kses_post( $event['description'] ); ?></div>
 		<?php endif; ?>
 
 		<div class="nnr-event-card__foot">

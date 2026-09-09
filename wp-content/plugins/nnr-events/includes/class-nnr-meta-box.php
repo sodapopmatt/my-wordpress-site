@@ -17,7 +17,7 @@ class NNR_Meta_Box {
 		'_nnr_end_date'        => array( 'label' => 'End Date', 'type' => 'date' ),
 		'_nnr_end_time'        => array( 'label' => 'End Time', 'type' => 'time' ),
 		'_nnr_recurring_weekly'=> array( 'label' => 'Recurring Weekly', 'type' => 'checkbox' ),
-		'_nnr_description'     => array( 'label' => 'Description', 'type' => 'textarea' ),
+		'_nnr_description'     => array( 'label' => 'Description', 'type' => 'richtext' ),
 		'_nnr_venue'           => array( 'label' => 'Venue Name', 'type' => 'text' ),
 		'_nnr_address'         => array( 'label' => 'Address', 'type' => 'text' ),
 		'_nnr_price'           => array( 'label' => 'Price', 'type' => 'text' ),
@@ -88,9 +88,21 @@ class NNR_Meta_Box {
 					</td>
 				</tr>
 				<tr>
-					<th><label for="_nnr_description"><?php esc_html_e( 'Description', 'nnr-events' ); ?></label></th>
+					<th><label for="nnr_description_editor"><?php esc_html_e( 'Description', 'nnr-events' ); ?></label></th>
 					<td>
-						<textarea id="_nnr_description" name="_nnr_description" rows="4" class="large-text"><?php echo esc_textarea( $values['_nnr_description'] ); ?></textarea>
+						<?php
+						wp_editor(
+							$values['_nnr_description'],
+							'nnr_description_editor',
+							array(
+								'textarea_name' => '_nnr_description',
+								'textarea_rows' => 6,
+								'teeny'         => true,
+								'media_buttons' => false,
+								'quicktags'     => true,
+							)
+						);
+						?>
 						<p class="description"><?php esc_html_e( 'Shown on the event card. Not limited in length.', 'nnr-events' ); ?></p>
 					</td>
 				</tr>
@@ -190,6 +202,9 @@ class NNR_Meta_Box {
 					break;
 				case 'textarea':
 					$value = sanitize_textarea_field( $raw );
+					break;
+				case 'richtext':
+					$value = wp_kses_post( $raw );
 					break;
 				default:
 					$value = sanitize_text_field( $raw );

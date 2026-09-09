@@ -214,6 +214,25 @@
 	line-height: 1.5;
 }
 
+.nnr-event-card__excerpt p {
+	margin: 0 0 0.5em;
+}
+
+.nnr-event-card__excerpt p:last-child {
+	margin-bottom: 0;
+}
+
+.nnr-event-card__excerpt a {
+	color: var(--nnr-accent);
+	text-decoration: underline;
+}
+
+.nnr-event-card__excerpt ul,
+.nnr-event-card__excerpt ol {
+	margin: 0 0 0.5em;
+	padding-left: 1.2em;
+}
+
 .nnr-event-card__foot {
 	display: flex;
 	align-items: center;
