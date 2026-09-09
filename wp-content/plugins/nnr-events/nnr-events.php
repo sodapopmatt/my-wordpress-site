@@ -58,16 +58,15 @@ function nnr_events_deactivate() {
 }
 register_deactivation_hook( __FILE__, 'nnr_events_deactivate' );
 
+/**
+ * Always load the (small, scoped) front-end assets rather than trying to
+ * detect the shortcode/block in advance. Page builders like WPBakery can
+ * store shortcode text base64-encoded (e.g. inside a Raw HTML element),
+ * which defeats a has_shortcode()/has_block() content check even though
+ * the shortcode still renders fine — that silently dropped the CSS/JS on
+ * pages built that way.
+ */
 function nnr_events_enqueue_assets() {
-	if ( ! is_singular() ) {
-		return;
-	}
-
-	global $post;
-	if ( ! $post || ! has_shortcode( $post->post_content, 'nnr_events' ) ) {
-		return;
-	}
-
 	wp_enqueue_style(
 		'nnr-events',
 		NNR_EVENTS_URL . 'assets/css/nnr-events.css',
