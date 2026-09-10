@@ -27,77 +27,6 @@
 
 	observeReveal();
 
-	// Scroll progress rail: one tick per event card; a tick lights up as you scroll past its card.
-	var scrollRailWrap = document.querySelector( '.nnr-events-wrap' );
-	var scrollRail = null;
-	var scrollRailTicks = [];
-
-	function rebuildScrollRail() {
-		if ( ! scrollRailWrap ) {
-			return;
-		}
-
-		if ( ! scrollRail ) {
-			scrollRail = document.createElement( 'div' );
-			scrollRail.className = 'nnr-events__scroll-rail';
-			scrollRail.setAttribute( 'aria-hidden', 'true' );
-			scrollRailWrap.appendChild( scrollRail );
-		}
-
-		scrollRail.innerHTML = '';
-		scrollRailTicks = [];
-
-		scrollRailWrap.querySelectorAll( '.nnr-event-card' ).forEach( function () {
-			var tick = document.createElement( 'span' );
-			tick.className = 'nnr-events__scroll-rail-tick';
-			scrollRail.appendChild( tick );
-			scrollRailTicks.push( tick );
-		} );
-
-		updateScrollRail();
-	}
-
-	var scrollRailTicking = false;
-
-	function updateScrollRail() {
-		scrollRailTicking = false;
-
-		if ( ! scrollRail || ! scrollRailTicks.length ) {
-			return;
-		}
-
-		var scrollable = document.documentElement.scrollHeight - window.innerHeight;
-		if ( scrollable <= 0 ) {
-			scrollRail.hidden = true;
-			return;
-		}
-		scrollRail.hidden = false;
-
-		var progress = Math.min( 1, Math.max( 0, window.scrollY / scrollable ) );
-		var activeIndex = Math.round( progress * ( scrollRailTicks.length - 1 ) );
-
-		scrollRailTicks.forEach( function ( tick, index ) {
-			tick.classList.toggle( 'is-active', index === activeIndex );
-		} );
-	}
-
-	function onScrollRailChange() {
-		if ( scrollRailTicking ) {
-			return;
-		}
-		scrollRailTicking = true;
-		window.requestAnimationFrame( updateScrollRail );
-	}
-
-	if ( scrollRailWrap ) {
-		rebuildScrollRail();
-		window.addEventListener( 'scroll', onScrollRailChange, { passive: true } );
-		window.addEventListener( 'resize', onScrollRailChange );
-		// Images finishing load after the initial run can change the page
-		// height, which otherwise wasn't reflected until the next scroll.
-		window.addEventListener( 'load', onScrollRailChange );
-	}
-
 	function fetchEvents( params ) {
 		var body = new URLSearchParams();
 		body.set( 'action', 'nnr_load_more_events' );
@@ -154,7 +83,6 @@
 				if ( json.data.html ) {
 					grid.insertAdjacentHTML( 'beforeend', json.data.html );
 					observeReveal( grid );
-					rebuildScrollRail();
 				}
 
 				if ( json.data.has_more ) {
@@ -216,7 +144,6 @@
 				grid.classList.remove( 'is-loading' );
 				grid.innerHTML = json.data.html || '';
 				observeReveal( grid );
-				rebuildScrollRail();
 
 				loadMoreBtn.dataset.category = category;
 				loadMoreBtn.dataset.offset = loadMoreBtn.dataset.limit;

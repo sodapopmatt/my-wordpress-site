@@ -1,12 +1,5 @@
 /* NNR Events — scoped under .nnr-events, safe to drop into any Salient page. */
 
-/* Only on pages with the events listing: Chrome's overscroll bounce at the
-   top of the page visually glitches the fixed-position scroll rail. Scoped
-   with :has() so this doesn't change scroll feel on pages without it. */
-body:has(.nnr-events-wrap) {
-	overscroll-behavior-y: none;
-}
-
 .nnr-events-wrap {
 	--nnr-columns: 3;
 	--nnr-accent: #a13a4c;
@@ -144,9 +137,12 @@ body:has(.nnr-events-wrap) {
 }
 
 .nnr-events--list .nnr-event-card__image {
-	width: 140px;
-	height: auto;
-	align-self: stretch;
+	width: 72px;
+	height: 72px;
+	flex-shrink: 0;
+	align-self: flex-start;
+	margin: 0.9rem 0 0.9rem 0.9rem;
+	border-radius: 8px;
 }
 
 .nnr-events--list .nnr-event-card__body {
@@ -182,6 +178,20 @@ body:has(.nnr-events-wrap) {
 	letter-spacing: 0.07em;
 	text-transform: uppercase;
 	color: var(--nnr-accent);
+}
+
+.nnr-event-card__day-abbr {
+	display: none;
+}
+
+@media (max-width: 620px) {
+	.nnr-event-card__day-full {
+		display: none;
+	}
+
+	.nnr-event-card__day-abbr {
+		display: inline;
+	}
 }
 
 .nnr-event-card__badge {
@@ -343,54 +353,7 @@ body:has(.nnr-events-wrap) {
 	color: #fff !important;
 }
 
-.nnr-events__scroll-rail {
-	position: fixed;
-	top: 50%;
-	top: 50dvh; /* tracks the mobile address bar collapsing/expanding smoothly, unlike a plain % which snaps once */
-	right: 18px;
-	transform: translateY(-50%);
-	z-index: 100;
-	display: flex;
-	flex-direction: column;
-	gap: 7px;
-	pointer-events: none;
-}
-
-.nnr-events__scroll-rail[hidden] {
-	display: none;
-}
-
-.nnr-events__scroll-rail-tick {
-	width: 14px;
-	height: 2px;
-	border-radius: 1px;
-	background: var(--nnr-border);
-	transition: background-color 0.2s ease, width 0.2s ease;
-}
-
-.nnr-events__scroll-rail-tick.is-active {
-	width: 22px;
-	background: var(--nnr-accent);
-}
-
 @media (max-width: 900px) {
-	.nnr-events-wrap {
-		padding-right: 16px;
-	}
-
-	.nnr-events__scroll-rail {
-		right: 4px;
-		gap: 4px;
-	}
-
-	.nnr-events__scroll-rail-tick {
-		width: 7px;
-	}
-
-	.nnr-events__scroll-rail-tick.is-active {
-		width: 11px;
-	}
-
 	.nnr-events:not(.nnr-events--list) {
 		grid-template-columns: repeat(2, 1fr);
 	}
@@ -399,15 +362,6 @@ body:has(.nnr-events-wrap) {
 @media (max-width: 620px) {
 	.nnr-events:not(.nnr-events--list) {
 		grid-template-columns: 1fr;
-	}
-
-	.nnr-events--list .nnr-event-card {
-		flex-direction: column;
-	}
-
-	.nnr-events--list .nnr-event-card__image {
-		width: 100%;
-		height: 130px;
 	}
 }
 

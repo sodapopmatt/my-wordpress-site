@@ -18,7 +18,7 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 		<div class="nnr-event-card__row">
 			<span class="nnr-event-card__when">
 				<?php if ( $date_label ) : ?>
-					<span class="nnr-event-card__date"><?php echo esc_html( $date_label ); ?></span>
+					<span class="nnr-event-card__date"><?php echo wp_kses( $date_label, array( 'span' => array( 'class' => true ) ) ); ?></span>
 				<?php endif; ?>
 				<?php if ( $event['start_date'] ) : ?>
 					<?php $google_url = NNR_ICS::get_google_url( $event['id'] ); ?>

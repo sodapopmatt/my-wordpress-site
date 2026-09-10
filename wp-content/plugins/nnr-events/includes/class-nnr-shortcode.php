@@ -290,19 +290,23 @@ class NNR_Shortcode {
 	}
 
 	/**
-	 * Human-readable "Fri, Sep 12 - 8:00 PM" style label, or "Weekly - 7:00 PM" for recurring events.
+	 * Returns a ready-to-print HTML string (not plain text): "Saturday, Sep 5
+	 * · 8:00 PM" style, or "Weekly · 7:00 PM" for recurring events. The day
+	 * name always renders as two spans — full and abbreviated — so CSS can
+	 * swap to the short form on narrow screens without the date/time/badge
+	 * wrapping awkwardly mid-phrase.
 	 */
 	public static function format_date_label( $event ) {
 		if ( $event['recurring'] ) {
-			$label = __( 'Weekly', 'nnr-events' );
+			$label = esc_html__( 'Weekly', 'nnr-events' );
 			if ( $event['start_date'] ) {
 				$ts = strtotime( $event['start_date'] );
 				if ( $ts ) {
-					$label = date_i18n( 'l', $ts );
+					$label = self::day_markup( date_i18n( 'l', $ts ), date_i18n( 'D', $ts ) );
 				}
 			}
 			if ( $event['start_time'] ) {
-				$label .= ' · ' . self::format_time( $event['start_time'] );
+				$label .= ' · ' . esc_html( self::format_time( $event['start_time'] ) );
 			}
 			return $label;
 		}
@@ -316,11 +320,16 @@ class NNR_Shortcode {
 			return '';
 		}
 
-		$label = date_i18n( 'D, M j', $ts );
+		$label = self::day_markup( date_i18n( 'l', $ts ), date_i18n( 'D', $ts ) ) . esc_html( date_i18n( ', M j', $ts ) );
 		if ( $event['start_time'] ) {
-			$label .= ' · ' . self::format_time( $event['start_time'] );
+			$label .= ' · ' . esc_html( self::format_time( $event['start_time'] ) );
 		}
 		return $label;
+	}
+
+	private static function day_markup( $full, $abbr ) {
+		return '<span class="nnr-event-card__day-full">' . esc_html( $full ) . '</span>'
+			. '<span class="nnr-event-card__day-abbr">' . esc_html( $abbr ) . '</span>';
 	}
 
 	private static function format_time( $time_24h ) {
