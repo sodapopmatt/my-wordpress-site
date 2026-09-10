@@ -93,6 +93,9 @@
 		rebuildScrollRail();
 		window.addEventListener( 'scroll', onScrollRailChange, { passive: true } );
 		window.addEventListener( 'resize', onScrollRailChange );
+		// Images finishing load after the initial run can change the page
+		// height, which otherwise wasn't reflected until the next scroll.
+		window.addEventListener( 'load', onScrollRailChange );
 	}
 
 	function fetchEvents( params ) {

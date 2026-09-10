@@ -1,5 +1,12 @@
 /* NNR Events — scoped under .nnr-events, safe to drop into any Salient page. */
 
+/* Only on pages with the events listing: Chrome's overscroll bounce at the
+   top of the page visually glitches the fixed-position scroll rail. Scoped
+   with :has() so this doesn't change scroll feel on pages without it. */
+body:has(.nnr-events-wrap) {
+	overscroll-behavior-y: none;
+}
+
 .nnr-events-wrap {
 	--nnr-columns: 3;
 	--nnr-accent: #a13a4c;
@@ -339,6 +346,7 @@
 .nnr-events__scroll-rail {
 	position: fixed;
 	top: 50%;
+	top: 50dvh; /* tracks the mobile address bar collapsing/expanding smoothly, unlike a plain % which snaps once */
 	right: 18px;
 	transform: translateY(-50%);
 	z-index: 100;
@@ -366,17 +374,21 @@
 }
 
 @media (max-width: 900px) {
+	.nnr-events-wrap {
+		padding-right: 16px;
+	}
+
 	.nnr-events__scroll-rail {
-		right: 8px;
-		gap: 5px;
+		right: 4px;
+		gap: 4px;
 	}
 
 	.nnr-events__scroll-rail-tick {
-		width: 10px;
+		width: 7px;
 	}
 
 	.nnr-events__scroll-rail-tick.is-active {
-		width: 16px;
+		width: 11px;
 	}
 
 	.nnr-events:not(.nnr-events--list) {
