@@ -38,15 +38,20 @@ class NNR_Taxonomy {
 				'show_in_menu'       => true,
 				'show_admin_column'  => true,
 				'show_in_rest'       => true,
+				'default_term'       => array(
+					'name' => __( 'Events', 'nnr-events' ),
+					'slug' => 'events',
+				),
 			)
 		);
 	}
 
 	/**
-	 * Seed the three default event categories. Safe to call multiple times.
+	 * Seed the default event categories. Safe to call multiple times.
 	 */
 	public function seed_terms() {
 		$terms = array(
+			'events'           => __( 'Events', 'nnr-events' ),
 			'pasadena-events' => __( 'Pasadena Events', 'nnr-events' ),
 			'live-music'      => __( 'Live Music', 'nnr-events' ),
 			'trivia'          => __( 'Trivia', 'nnr-events' ),

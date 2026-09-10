@@ -55,10 +55,6 @@ class NNR_Meta_Box {
 		if ( '' === $values['_nnr_button_text'] ) {
 			$values['_nnr_button_text'] = 'Website';
 		}
-		if ( '' === $values['_nnr_description'] ) {
-			// Events created before this field existed kept their description in the content editor.
-			$values['_nnr_description'] = wp_strip_all_tags( get_the_content( '', false, $post ) );
-		}
 		?>
 		<table class="form-table nnr-event-fields">
 			<tbody>
