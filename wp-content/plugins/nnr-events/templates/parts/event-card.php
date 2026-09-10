@@ -7,11 +7,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 $date_label  = NNR_Shortcode::format_date_label( $event );
+$range_note  = NNR_Shortcode::format_date_range_note( $event );
 $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 ?>
 <div class="nnr-event-card">
 	<?php if ( $show_image ) : ?>
-		<div class="nnr-event-card__image" style="background-image:url('<?php echo esc_url( $event['image'] ); ?>');"></div>
+		<div
+			class="nnr-event-card__image"
+			style="background-image:url('<?php echo esc_url( $event['image'] ); ?>');"
+			role="button"
+			tabindex="0"
+			data-nnr-lightbox="<?php echo esc_url( $event['image'] ); ?>"
+			aria-label="<?php echo esc_attr( sprintf( /* translators: %s: event title */ __( 'View larger image for %s', 'nnr-events' ), $event['title'] ) ); ?>"
+		></div>
 	<?php endif; ?>
 
 	<div class="nnr-event-card__body">
@@ -47,6 +55,10 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 			<?php endif; ?>
 		</div>
 
+		<?php if ( $range_note ) : ?>
+			<div class="nnr-event-card__range"><?php echo $range_note; /* phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- already escaped in format_date_range_note() */ ?></div>
+		<?php endif; ?>
+
 		<h3 class="nnr-event-card__title"><?php echo esc_html( $event['title'] ); ?></h3>
 
 		<?php if ( $event['venue'] || $event['address'] ) : ?>
@@ -60,6 +72,7 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 
 		<?php if ( $event['description'] ) : ?>
 			<div class="nnr-event-card__excerpt"><?php echo wp_kses_post( $event['description'] ); ?></div>
+			<button type="button" class="nnr-event-card__read-more" data-nnr-title="<?php echo esc_attr( $event['title'] ); ?>" hidden><?php esc_html_e( 'Read more', 'nnr-events' ); ?></button>
 		<?php endif; ?>
 
 		<div class="nnr-event-card__foot">

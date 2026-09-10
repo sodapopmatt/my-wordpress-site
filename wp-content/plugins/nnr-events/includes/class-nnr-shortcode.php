@@ -28,6 +28,18 @@ class NNR_Shortcode {
 		return wp_strip_all_tags( get_the_content( '', false, $post_id ) );
 	}
 
+	/**
+	 * Prefers a directly linked image (no Media Library upload needed) over
+	 * the featured image, so events don't have to add to the media library.
+	 */
+	public static function get_image_url( $post_id ) {
+		$url = get_post_meta( $post_id, '_nnr_image_url', true );
+		if ( $url ) {
+			return $url;
+		}
+		return get_the_post_thumbnail_url( $post_id, 'medium_large' );
+	}
+
 	private function normalize_atts( $atts ) {
 		$atts = shortcode_atts(
 			array(
@@ -275,7 +287,7 @@ class NNR_Shortcode {
 			'title'       => get_the_title( $post_id ),
 			'permalink'   => '',
 			'description' => self::get_description( $post_id ),
-			'image'       => get_the_post_thumbnail_url( $post_id, 'medium_large' ),
+			'image'       => self::get_image_url( $post_id ),
 			'start_date'  => get_post_meta( $post_id, '_nnr_start_date', true ),
 			'start_time'  => get_post_meta( $post_id, '_nnr_start_time', true ),
 			'end_date'    => get_post_meta( $post_id, '_nnr_end_date', true ),
@@ -325,6 +337,32 @@ class NNR_Shortcode {
 			$label .= ' · ' . esc_html( self::format_time( $event['start_time'] ) );
 		}
 		return $label;
+	}
+
+	/**
+	 * "Runs through Sep 12" note for events spanning more than one day.
+	 * Kept separate from format_date_label() (its own line on the card)
+	 * rather than appended inline, since the date row already competes for
+	 * space with the calendar icon and the "Weekly" badge.
+	 */
+	public static function format_date_range_note( $event ) {
+		if ( $event['recurring'] || ! $event['start_date'] || ! $event['end_date'] ) {
+			return '';
+		}
+		if ( $event['end_date'] === $event['start_date'] ) {
+			return '';
+		}
+
+		$end_ts = strtotime( $event['end_date'] );
+		if ( ! $end_ts ) {
+			return '';
+		}
+
+		return sprintf(
+			/* translators: %s: end date, e.g. "Sep 12" */
+			esc_html__( 'Runs through %s', 'nnr-events' ),
+			esc_html( date_i18n( 'M j', $end_ts ) )
+		);
 	}
 
 	private static function day_markup( $full, $abbr ) {

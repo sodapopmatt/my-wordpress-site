@@ -40,8 +40,9 @@ class NNR_Block {
 			'nnr-events-frontend',
 			'NNREventsFrontend',
 			array(
-				'ajaxUrl'     => admin_url( 'admin-ajax.php' ),
-				'loadingText' => __( 'Loading…', 'nnr-events' ),
+				'ajaxUrl'          => admin_url( 'admin-ajax.php' ),
+				'loadingText'      => __( 'Loading…', 'nnr-events' ),
+				'closeLightboxText' => __( 'Close', 'nnr-events' ),
 			)
 		);
 

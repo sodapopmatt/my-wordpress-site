@@ -18,6 +18,7 @@ class NNR_Meta_Box {
 		'_nnr_end_time'        => array( 'label' => 'End Time', 'type' => 'time' ),
 		'_nnr_recurring_weekly'=> array( 'label' => 'Recurring Weekly', 'type' => 'checkbox' ),
 		'_nnr_description'     => array( 'label' => 'Description', 'type' => 'richtext' ),
+		'_nnr_image_url'       => array( 'label' => 'Image URL', 'type' => 'url' ),
 		'_nnr_venue'           => array( 'label' => 'Venue Name', 'type' => 'text' ),
 		'_nnr_address'         => array( 'label' => 'Address', 'type' => 'text' ),
 		'_nnr_price'           => array( 'label' => 'Price', 'type' => 'text' ),
@@ -100,6 +101,13 @@ class NNR_Meta_Box {
 						);
 						?>
 						<p class="description"><?php esc_html_e( 'Shown on the event card. Not limited in length.', 'nnr-events' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="_nnr_image_url"><?php esc_html_e( 'Image URL', 'nnr-events' ); ?></label></th>
+					<td>
+						<input type="url" id="_nnr_image_url" name="_nnr_image_url" value="<?php echo esc_attr( $values['_nnr_image_url'] ); ?>" class="regular-text" placeholder="https://" />
+						<p class="description"><?php esc_html_e( 'Link to an image hosted elsewhere (e.g. the ticket listing\'s own photo) instead of uploading one here. Falls back to the Featured Image below if left blank.', 'nnr-events' ); ?></p>
 					</td>
 				</tr>
 				<tr>
