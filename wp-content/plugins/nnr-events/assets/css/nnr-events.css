@@ -207,6 +207,19 @@
 	margin-top: -0.05rem;
 }
 
+.nnr-event-card__sessions {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+	margin-top: -0.05rem;
+}
+
+.nnr-event-card__session-line {
+	font-size: 0.78rem;
+	font-weight: 600;
+	color: var(--nnr-text-muted);
+}
+
 .nnr-event-card__badge {
 	font-size: 0.68rem;
 	font-weight: 700;

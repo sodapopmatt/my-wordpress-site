@@ -33,18 +33,49 @@ class NNR_ICS {
 			return '';
 		}
 
-		$start_time  = get_post_meta( $post_id, '_nnr_start_time', true );
-		$end_date    = get_post_meta( $post_id, '_nnr_end_date', true );
-		$end_time    = get_post_meta( $post_id, '_nnr_end_time', true );
-		$recurring   = '1' === get_post_meta( $post_id, '_nnr_recurring_weekly', true );
-		$venue       = get_post_meta( $post_id, '_nnr_venue', true );
-		$address     = get_post_meta( $post_id, '_nnr_address', true );
-		$location    = trim( $venue . ( $venue && $address ? ', ' : '' ) . $address );
-		$description = wp_strip_all_tags( NNR_Shortcode::get_description( $post_id ) );
+		$start_time = get_post_meta( $post_id, '_nnr_start_time', true );
+		$end_date   = get_post_meta( $post_id, '_nnr_end_date', true );
+		$end_time   = get_post_meta( $post_id, '_nnr_end_time', true );
+		$recurring  = '1' === get_post_meta( $post_id, '_nnr_recurring_weekly', true );
 
+		$dates = self::build_google_dates_param( $start_date, $start_time, $end_date, $end_time );
+		if ( ! $dates ) {
+			return '';
+		}
+
+		return self::build_google_url( $post, $dates, $recurring );
+	}
+
+	/**
+	 * Same as get_google_url(), but for one day of a multi-session event
+	 * (different start/end time each day) instead of the event as a whole.
+	 */
+	public static function get_google_url_for_session( $post_id, $session ) {
+		$post = get_post( $post_id );
+		if ( ! $post || empty( $session['date'] ) ) {
+			return '';
+		}
+
+		$dates = self::build_google_dates_param(
+			$session['date'],
+			isset( $session['start_time'] ) ? $session['start_time'] : '',
+			$session['date'],
+			isset( $session['end_time'] ) ? $session['end_time'] : ''
+		);
+		if ( ! $dates ) {
+			return '';
+		}
+
+		return self::build_google_url( $post, $dates, false );
+	}
+
+	private static function build_google_dates_param( $start_date, $start_time, $end_date, $end_time ) {
 		if ( $start_time ) {
 			$tz       = wp_timezone();
 			$start_dt = DateTime::createFromFormat( 'Y-m-d H:i', $start_date . ' ' . $start_time, $tz );
+			if ( ! $start_dt ) {
+				return '';
+			}
 			if ( $end_date ) {
 				$end_dt = DateTime::createFromFormat( 'Y-m-d H:i', $end_date . ' ' . ( $end_time ? $end_time : $start_time ), $tz );
 			} else {
@@ -53,13 +84,20 @@ class NNR_ICS {
 			}
 			$start_dt->setTimezone( new DateTimeZone( 'UTC' ) );
 			$end_dt->setTimezone( new DateTimeZone( 'UTC' ) );
-			$dates = $start_dt->format( 'Ymd\THis\Z' ) . '/' . $end_dt->format( 'Ymd\THis\Z' );
-		} else {
-			$dtend_date = $end_date ? $end_date : $start_date;
-			$next       = DateTime::createFromFormat( 'Y-m-d', $dtend_date );
-			$next_str   = $next ? ( $next->modify( '+1 day' )->format( 'Ymd' ) ) : str_replace( '-', '', $dtend_date );
-			$dates      = str_replace( '-', '', $start_date ) . '/' . $next_str;
+			return $start_dt->format( 'Ymd\THis\Z' ) . '/' . $end_dt->format( 'Ymd\THis\Z' );
 		}
+
+		$dtend_date = $end_date ? $end_date : $start_date;
+		$next       = DateTime::createFromFormat( 'Y-m-d', $dtend_date );
+		$next_str   = $next ? ( $next->modify( '+1 day' )->format( 'Ymd' ) ) : str_replace( '-', '', $dtend_date );
+		return str_replace( '-', '', $start_date ) . '/' . $next_str;
+	}
+
+	private static function build_google_url( $post, $dates, $recurring ) {
+		$venue       = get_post_meta( $post->ID, '_nnr_venue', true );
+		$address     = get_post_meta( $post->ID, '_nnr_address', true );
+		$location    = trim( $venue . ( $venue && $address ? ', ' : '' ) . $address );
+		$description = wp_strip_all_tags( NNR_Shortcode::get_description( $post->ID ) );
 
 		$args = array(
 			'action'   => 'TEMPLATE',
@@ -97,18 +135,64 @@ class NNR_ICS {
 		exit;
 	}
 
+	/**
+	 * Multi-session events (different time each day) export as multiple
+	 * VEVENT blocks in one .ics file, one per day — calendar apps handle
+	 * several events in a single import fine.
+	 */
 	private function build_ics( $post ) {
 		$post_id       = $post->ID;
-		$start_date    = get_post_meta( $post_id, '_nnr_start_date', true );
-		$start_time    = get_post_meta( $post_id, '_nnr_start_time', true );
-		$end_date      = get_post_meta( $post_id, '_nnr_end_date', true );
-		$end_time      = get_post_meta( $post_id, '_nnr_end_time', true );
-		$recurring     = '1' === get_post_meta( $post_id, '_nnr_recurring_weekly', true );
-		$venue         = get_post_meta( $post_id, '_nnr_venue', true );
-		$address       = get_post_meta( $post_id, '_nnr_address', true );
-		$ticket_url    = get_post_meta( $post_id, '_nnr_ticket_url', true );
-		$location      = trim( $venue . ( $venue && $address ? ', ' : '' ) . $address );
-		$description   = wp_strip_all_tags( NNR_Shortcode::get_description( $post_id ) );
+		$sessions      = get_post_meta( $post_id, '_nnr_sessions', true );
+		$multi_session = '1' === get_post_meta( $post_id, '_nnr_multi_session', true ) && is_array( $sessions ) && ! empty( $sessions );
+
+		$lines   = array();
+		$lines[] = 'BEGIN:VCALENDAR';
+		$lines[] = 'VERSION:2.0';
+		$lines[] = 'PRODID:-//NNR Events//EN';
+		$lines[] = 'CALSCALE:GREGORIAN';
+
+		if ( $multi_session ) {
+			foreach ( $sessions as $i => $session ) {
+				$lines = array_merge(
+					$lines,
+					$this->build_vevent(
+						$post,
+						$post_id . '-' . $i,
+						$session['date'],
+						isset( $session['start_time'] ) ? $session['start_time'] : '',
+						$session['date'],
+						isset( $session['end_time'] ) ? $session['end_time'] : '',
+						false
+					)
+				);
+			}
+		} else {
+			$lines = array_merge(
+				$lines,
+				$this->build_vevent(
+					$post,
+					(string) $post_id,
+					get_post_meta( $post_id, '_nnr_start_date', true ),
+					get_post_meta( $post_id, '_nnr_start_time', true ),
+					get_post_meta( $post_id, '_nnr_end_date', true ),
+					get_post_meta( $post_id, '_nnr_end_time', true ),
+					'1' === get_post_meta( $post_id, '_nnr_recurring_weekly', true )
+				)
+			);
+		}
+
+		$lines[] = 'END:VCALENDAR';
+
+		return implode( "\r\n", $lines ) . "\r\n";
+	}
+
+	private function build_vevent( $post, $uid_suffix, $start_date, $start_time, $end_date, $end_time, $recurring ) {
+		$post_id     = $post->ID;
+		$venue       = get_post_meta( $post_id, '_nnr_venue', true );
+		$address     = get_post_meta( $post_id, '_nnr_address', true );
+		$ticket_url  = get_post_meta( $post_id, '_nnr_ticket_url', true );
+		$location    = trim( $venue . ( $venue && $address ? ', ' : '' ) . $address );
+		$description = wp_strip_all_tags( NNR_Shortcode::get_description( $post_id ) );
 
 		$tz      = wp_timezone();
 		$tz_name = $tz->getName();
@@ -134,12 +218,8 @@ class NNR_ICS {
 		}
 
 		$lines   = array();
-		$lines[] = 'BEGIN:VCALENDAR';
-		$lines[] = 'VERSION:2.0';
-		$lines[] = 'PRODID:-//NNR Events//EN';
-		$lines[] = 'CALSCALE:GREGORIAN';
 		$lines[] = 'BEGIN:VEVENT';
-		$lines[] = 'UID:nnr-event-' . $post_id . '@' . wp_parse_url( home_url(), PHP_URL_HOST );
+		$lines[] = 'UID:nnr-event-' . $uid_suffix . '@' . wp_parse_url( home_url(), PHP_URL_HOST );
 		$lines[] = 'DTSTAMP:' . gmdate( 'Ymd\THis\Z' );
 
 		if ( $all_day ) {
@@ -173,9 +253,8 @@ class NNR_ICS {
 		}
 
 		$lines[] = 'END:VEVENT';
-		$lines[] = 'END:VCALENDAR';
 
-		return implode( "\r\n", $lines ) . "\r\n";
+		return $lines;
 	}
 
 	private function next_day( $date ) {

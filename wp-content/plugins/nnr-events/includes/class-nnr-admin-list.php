@@ -14,7 +14,9 @@ class NNR_Admin_List {
 	public function __construct() {
 		add_filter( 'views_edit-event', array( $this, 'add_expired_view' ) );
 		add_action( 'pre_get_posts', array( $this, 'filter_expired_query' ) );
+		add_action( 'pre_get_posts', array( $this, 'sort_by_start_date' ) );
 		add_filter( 'manage_event_posts_columns', array( $this, 'add_status_column' ) );
+		add_filter( 'manage_edit-event_sortable_columns', array( $this, 'add_sortable_columns' ) );
 		add_action( 'manage_event_posts_custom_column', array( $this, 'render_status_column' ), 10, 2 );
 	}
 
@@ -134,20 +136,85 @@ class NNR_Admin_List {
 		foreach ( $columns as $key => $label ) {
 			$new[ $key ] = $label;
 			if ( 'title' === $key ) {
-				$new['nnr_status'] = __( 'Status', 'nnr-events' );
+				$new['nnr_status']     = __( 'Status', 'nnr-events' );
+				$new['nnr_start_date'] = __( 'Start Date', 'nnr-events' );
 			}
 		}
 		return $new;
 	}
 
-	public function render_status_column( $column, $post_id ) {
-		if ( 'nnr_status' !== $column ) {
+	public function add_sortable_columns( $columns ) {
+		$columns['nnr_start_date'] = 'nnr_start_date';
+		return $columns;
+	}
+
+	public function sort_by_start_date( $query ) {
+		if ( ! is_admin() || ! $query->is_main_query() ) {
 			return;
 		}
 
+		if ( 'event' !== $query->get( 'post_type' ) ) {
+			return;
+		}
+
+		// No explicit sort requested (a fresh visit to the list, or after
+		// using the search/date/status filters without clicking a column
+		// header) — default to soonest-first by start date instead of the
+		// normal newest-published-first.
+		if ( ! $query->get( 'orderby' ) && ! isset( $_GET['orderby'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$query->set( 'meta_key', '_nnr_start_date' );
+			$query->set( 'orderby', 'meta_value' );
+			$query->set( 'order', 'ASC' );
+			return;
+		}
+
+		if ( 'nnr_start_date' !== $query->get( 'orderby' ) ) {
+			return;
+		}
+
+		$query->set( 'meta_key', '_nnr_start_date' );
+		$query->set( 'orderby', 'meta_value' );
+	}
+
+	public function render_status_column( $column, $post_id ) {
 		$recurring  = '1' === get_post_meta( $post_id, '_nnr_recurring_weekly', true );
 		$start_date = get_post_meta( $post_id, '_nnr_start_date', true );
+		$start_time = get_post_meta( $post_id, '_nnr_start_time', true );
 		$end_date   = get_post_meta( $post_id, '_nnr_end_date', true );
+
+		if ( 'nnr_start_date' === $column ) {
+			if ( ! $start_date ) {
+				echo '&#8212;';
+				return;
+			}
+
+			$ts = strtotime( $start_date );
+			if ( ! $ts ) {
+				echo '&#8212;';
+				return;
+			}
+
+			echo esc_html( date_i18n( 'M j, Y', $ts ) );
+
+			if ( $end_date && $end_date !== $start_date ) {
+				$end_ts = strtotime( $end_date );
+				if ( $end_ts ) {
+					echo esc_html( ' &ndash; ' . date_i18n( 'M j, Y', $end_ts ) );
+				}
+			}
+
+			if ( $start_time ) {
+				$time_ts = strtotime( $start_time );
+				if ( $time_ts ) {
+					echo '<br /><span style="color:#646970;">' . esc_html( date_i18n( 'g:i A', $time_ts ) ) . '</span>';
+				}
+			}
+			return;
+		}
+
+		if ( 'nnr_status' !== $column ) {
+			return;
+		}
 
 		if ( $recurring ) {
 			echo '<span style="color:#4d611f;font-weight:600;">' . esc_html__( 'Weekly', 'nnr-events' ) . '</span>';

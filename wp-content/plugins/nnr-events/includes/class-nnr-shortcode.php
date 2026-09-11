@@ -282,22 +282,27 @@ class NNR_Shortcode {
 	}
 
 	private function get_event_data( $post_id ) {
+		$sessions      = get_post_meta( $post_id, '_nnr_sessions', true );
+		$multi_session = '1' === get_post_meta( $post_id, '_nnr_multi_session', true ) && is_array( $sessions ) && ! empty( $sessions );
+
 		return array(
-			'id'          => $post_id,
-			'title'       => get_the_title( $post_id ),
-			'permalink'   => '',
-			'description' => self::get_description( $post_id ),
-			'image'       => self::get_image_url( $post_id ),
-			'start_date'  => get_post_meta( $post_id, '_nnr_start_date', true ),
-			'start_time'  => get_post_meta( $post_id, '_nnr_start_time', true ),
-			'end_date'    => get_post_meta( $post_id, '_nnr_end_date', true ),
-			'end_time'    => get_post_meta( $post_id, '_nnr_end_time', true ),
-			'recurring'   => '1' === get_post_meta( $post_id, '_nnr_recurring_weekly', true ),
-			'venue'       => get_post_meta( $post_id, '_nnr_venue', true ),
-			'address'     => get_post_meta( $post_id, '_nnr_address', true ),
-			'price'       => get_post_meta( $post_id, '_nnr_price', true ),
-			'ticket_url'  => get_post_meta( $post_id, '_nnr_ticket_url', true ),
-			'button_text' => get_post_meta( $post_id, '_nnr_button_text', true ),
+			'id'            => $post_id,
+			'title'         => get_the_title( $post_id ),
+			'permalink'     => '',
+			'description'   => self::get_description( $post_id ),
+			'image'         => self::get_image_url( $post_id ),
+			'start_date'    => get_post_meta( $post_id, '_nnr_start_date', true ),
+			'start_time'    => get_post_meta( $post_id, '_nnr_start_time', true ),
+			'end_date'      => get_post_meta( $post_id, '_nnr_end_date', true ),
+			'end_time'      => get_post_meta( $post_id, '_nnr_end_time', true ),
+			'recurring'     => '1' === get_post_meta( $post_id, '_nnr_recurring_weekly', true ),
+			'multi_session' => $multi_session,
+			'sessions'      => $multi_session ? $sessions : array(),
+			'venue'         => get_post_meta( $post_id, '_nnr_venue', true ),
+			'address'       => get_post_meta( $post_id, '_nnr_address', true ),
+			'price'         => get_post_meta( $post_id, '_nnr_price', true ),
+			'ticket_url'    => get_post_meta( $post_id, '_nnr_ticket_url', true ),
+			'button_text'   => get_post_meta( $post_id, '_nnr_button_text', true ),
 		);
 	}
 
@@ -363,6 +368,30 @@ class NNR_Shortcode {
 			esc_html__( 'Runs through %s', 'nnr-events' ),
 			esc_html( date_i18n( 'M j', $end_ts ) )
 		);
+	}
+
+	/**
+	 * One line per day for multi-session events, e.g. "Fri, Sep 11 · 6:00 PM
+	 * – 9:00 PM". Stacked (one per session) rather than joined into a single
+	 * line, since that reads more clearly and avoids the wrapping problems
+	 * a long combined string caused elsewhere on the card.
+	 */
+	public static function format_session_label( $session ) {
+		$ts = strtotime( $session['date'] );
+		if ( ! $ts ) {
+			return '';
+		}
+
+		$label = esc_html( date_i18n( 'D, M j', $ts ) );
+
+		if ( ! empty( $session['start_time'] ) ) {
+			$label .= ' · ' . esc_html( self::format_time( $session['start_time'] ) );
+			if ( ! empty( $session['end_time'] ) ) {
+				$label .= '–' . esc_html( self::format_time( $session['end_time'] ) );
+			}
+		}
+
+		return $label;
 	}
 
 	private static function day_markup( $full, $abbr ) {

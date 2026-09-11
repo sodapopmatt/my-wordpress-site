@@ -16,6 +16,7 @@ class NNR_Meta_Box {
 		'_nnr_start_time'      => array( 'label' => 'Start Time', 'type' => 'time' ),
 		'_nnr_end_date'        => array( 'label' => 'End Date', 'type' => 'date' ),
 		'_nnr_end_time'        => array( 'label' => 'End Time', 'type' => 'time' ),
+		'_nnr_multi_session'   => array( 'label' => 'Different Times Each Day', 'type' => 'checkbox' ),
 		'_nnr_recurring_weekly'=> array( 'label' => 'Recurring Weekly', 'type' => 'checkbox' ),
 		'_nnr_description'     => array( 'label' => 'Description', 'type' => 'richtext' ),
 		'_nnr_image_url'       => array( 'label' => 'Image URL', 'type' => 'url' ),
@@ -56,22 +57,55 @@ class NNR_Meta_Box {
 		if ( '' === $values['_nnr_button_text'] ) {
 			$values['_nnr_button_text'] = 'Website';
 		}
+
+		$sessions = get_post_meta( $post->ID, '_nnr_sessions', true );
+		if ( ! is_array( $sessions ) || empty( $sessions ) ) {
+			$sessions = array( array( 'date' => '', 'start_time' => '', 'end_time' => '' ) );
+		}
 		?>
 		<table class="form-table nnr-event-fields">
 			<tbody>
-				<tr>
+				<tr id="nnr_single_dates_row">
 					<th><label for="_nnr_start_date"><?php esc_html_e( 'Start Date', 'nnr-events' ); ?></label></th>
 					<td>
-						<input type="date" id="_nnr_start_date" name="_nnr_start_date" value="<?php echo esc_attr( $values['_nnr_start_date'] ); ?>" required />
+						<input type="date" id="_nnr_start_date" name="_nnr_start_date" value="<?php echo esc_attr( $values['_nnr_start_date'] ); ?>" <?php echo $values['_nnr_multi_session'] ? '' : 'required'; ?> />
 						<input type="time" id="_nnr_start_time" name="_nnr_start_time" value="<?php echo esc_attr( $values['_nnr_start_time'] ); ?>" style="margin-left:8px;" />
 					</td>
 				</tr>
-				<tr>
+				<tr id="nnr_single_end_dates_row">
 					<th><label for="_nnr_end_date"><?php esc_html_e( 'End Date', 'nnr-events' ); ?></label></th>
 					<td>
 						<input type="date" id="_nnr_end_date" name="_nnr_end_date" value="<?php echo esc_attr( $values['_nnr_end_date'] ); ?>" />
 						<input type="time" id="_nnr_end_time" name="_nnr_end_time" value="<?php echo esc_attr( $values['_nnr_end_time'] ); ?>" style="margin-left:8px;" />
 						<p class="description"><?php esc_html_e( 'Optional.', 'nnr-events' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="_nnr_multi_session"><?php esc_html_e( 'Different Times Each Day', 'nnr-events' ); ?></label></th>
+					<td>
+						<label>
+							<input type="checkbox" id="_nnr_multi_session" name="_nnr_multi_session" value="1" <?php checked( $values['_nnr_multi_session'], '1' ); ?> />
+							<?php esc_html_e( 'This event has a different start/end time on each day (e.g. Fri 6pm, Sat 10am, Sun 12pm)', 'nnr-events' ); ?>
+						</label>
+					</td>
+				</tr>
+				<tr id="nnr_sessions_row" <?php echo $values['_nnr_multi_session'] ? '' : 'hidden'; ?>>
+					<th><?php esc_html_e( 'Day Times', 'nnr-events' ); ?></th>
+					<td>
+						<table id="nnr_sessions_table">
+							<tbody>
+								<?php foreach ( $sessions as $i => $session ) : ?>
+									<tr class="nnr-session-row">
+										<td><input type="date" name="_nnr_sessions[<?php echo (int) $i; ?>][date]" value="<?php echo esc_attr( $session['date'] ); ?>" /></td>
+										<td><input type="time" name="_nnr_sessions[<?php echo (int) $i; ?>][start_time]" value="<?php echo esc_attr( $session['start_time'] ); ?>" /></td>
+										<td><input type="time" name="_nnr_sessions[<?php echo (int) $i; ?>][end_time]" value="<?php echo esc_attr( $session['end_time'] ); ?>" /></td>
+										<td><button type="button" class="button nnr-session-remove"><?php esc_html_e( 'Remove', 'nnr-events' ); ?></button></td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+						<button type="button" class="button" id="nnr_session_add"><?php esc_html_e( 'Add another day', 'nnr-events' ); ?></button>
+						<p class="description"><?php esc_html_e( 'Start time is required per day; end time is optional.', 'nnr-events' ); ?></p>
 					</td>
 				</tr>
 				<tr>
@@ -165,6 +199,74 @@ class NNR_Meta_Box {
 				syncing = false;
 			} );
 		} )();
+
+		( function () {
+			var toggle = document.getElementById( '_nnr_multi_session' );
+			var singleRows = [
+				document.getElementById( 'nnr_single_dates_row' ),
+				document.getElementById( 'nnr_single_end_dates_row' ),
+			];
+			var sessionsRow = document.getElementById( 'nnr_sessions_row' );
+			var sessionsBody = document.querySelector( '#nnr_sessions_table tbody' );
+			var addBtn = document.getElementById( 'nnr_session_add' );
+			if ( ! toggle || ! sessionsRow || ! sessionsBody || ! addBtn ) {
+				return;
+			}
+
+			function applyToggle() {
+				var on = toggle.checked;
+				singleRows.forEach( function ( row ) {
+					if ( row ) {
+						row.hidden = on;
+					}
+				} );
+				sessionsRow.hidden = ! on;
+				document.getElementById( '_nnr_start_date' ).required = ! on;
+			}
+
+			toggle.addEventListener( 'change', applyToggle );
+			applyToggle();
+
+			function nextIndex() {
+				var rows = sessionsBody.querySelectorAll( '.nnr-session-row' );
+				var max = -1;
+				rows.forEach( function ( row ) {
+					var input = row.querySelector( 'input[name*="[date]"]' );
+					var match = input && input.name.match( /\[(\d+)\]/ );
+					if ( match ) {
+						max = Math.max( max, parseInt( match[ 1 ], 10 ) );
+					}
+				} );
+				return max + 1;
+			}
+
+			addBtn.addEventListener( 'click', function () {
+				var i = nextIndex();
+				var tr = document.createElement( 'tr' );
+				tr.className = 'nnr-session-row';
+				tr.innerHTML =
+					'<td><input type="date" name="_nnr_sessions[' + i + '][date]" /></td>' +
+					'<td><input type="time" name="_nnr_sessions[' + i + '][start_time]" /></td>' +
+					'<td><input type="time" name="_nnr_sessions[' + i + '][end_time]" /></td>' +
+					'<td><button type="button" class="button nnr-session-remove"><?php echo esc_js( __( 'Remove', 'nnr-events' ) ); ?></button></td>';
+				sessionsBody.appendChild( tr );
+			} );
+
+			sessionsBody.addEventListener( 'click', function ( e ) {
+				var btn = e.target.closest( '.nnr-session-remove' );
+				if ( ! btn ) {
+					return;
+				}
+				var rows = sessionsBody.querySelectorAll( '.nnr-session-row' );
+				if ( rows.length <= 1 ) {
+					btn.closest( '.nnr-session-row' ).querySelectorAll( 'input' ).forEach( function ( input ) {
+						input.value = '';
+					} );
+					return;
+				}
+				btn.closest( '.nnr-session-row' ).remove();
+			} );
+		} )();
 		</script>
 		<?php
 	}
@@ -216,6 +318,59 @@ class NNR_Meta_Box {
 
 			update_post_meta( $post_id, $key, $value );
 		}
+
+		$this->save_sessions( $post_id );
+	}
+
+	/**
+	 * Saves the per-day time slots, then — when "Different Times Each Day" is
+	 * on — overwrites the single start/end date/time meta with the earliest
+	 * and latest session so expiry checks, sorting, and structured data
+	 * (which all read those flat fields) stay correct without needing to
+	 * know sessions exist at all.
+	 */
+	private function save_sessions( $post_id ) {
+		$multi_session = '1' === get_post_meta( $post_id, '_nnr_multi_session', true );
+
+		$raw_sessions = isset( $_POST['_nnr_sessions'] ) && is_array( $_POST['_nnr_sessions'] ) ? wp_unslash( $_POST['_nnr_sessions'] ) : array();
+
+		$sessions = array();
+		foreach ( $raw_sessions as $row ) {
+			$date = $this->sanitize_date( isset( $row['date'] ) ? $row['date'] : '' );
+			if ( '' === $date ) {
+				continue;
+			}
+			$start_time = $this->sanitize_time( isset( $row['start_time'] ) ? $row['start_time'] : '' );
+			if ( '' === $start_time ) {
+				continue;
+			}
+			$sessions[] = array(
+				'date'       => $date,
+				'start_time' => $start_time,
+				'end_time'   => $this->sanitize_time( isset( $row['end_time'] ) ? $row['end_time'] : '' ),
+			);
+		}
+
+		usort(
+			$sessions,
+			function ( $a, $b ) {
+				return strcmp( $a['date'] . $a['start_time'], $b['date'] . $b['start_time'] );
+			}
+		);
+
+		update_post_meta( $post_id, '_nnr_sessions', $sessions );
+
+		if ( ! $multi_session || empty( $sessions ) ) {
+			return;
+		}
+
+		$first = $sessions[0];
+		$last  = $sessions[ count( $sessions ) - 1 ];
+
+		update_post_meta( $post_id, '_nnr_start_date', $first['date'] );
+		update_post_meta( $post_id, '_nnr_start_time', $first['start_time'] );
+		update_post_meta( $post_id, '_nnr_end_date', $last['date'] );
+		update_post_meta( $post_id, '_nnr_end_time', $last['end_time'] );
 	}
 
 	private function sanitize_date( $value ) {

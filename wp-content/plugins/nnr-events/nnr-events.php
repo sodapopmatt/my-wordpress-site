@@ -2,7 +2,7 @@
 /**
  * Plugin Name: NNR Events
  * Description: Manual event backend for News N' Roses. Provides an Event post type, event categories, and an [nnr_events] shortcode for embedding event listings on any page.
- * Version: 1.7.0
+ * Version: 1.8.2
  * Author: News N' Roses
  * Text Domain: nnr-events
  */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'NNR_EVENTS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'NNR_EVENTS_URL', plugin_dir_url( __FILE__ ) );
-define( 'NNR_EVENTS_VERSION', '1.7.0' );
+define( 'NNR_EVENTS_VERSION', '1.8.2' );
 
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-cpt.php';
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-taxonomy.php';

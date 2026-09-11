@@ -25,11 +25,10 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 	<div class="nnr-event-card__body">
 		<div class="nnr-event-card__row">
 			<span class="nnr-event-card__when">
-				<?php if ( $date_label ) : ?>
+				<?php if ( ! $event['multi_session'] && $date_label ) : ?>
 					<span class="nnr-event-card__date"><?php echo wp_kses( $date_label, array( 'span' => array( 'class' => true ) ) ); ?></span>
 				<?php endif; ?>
 				<?php if ( $event['start_date'] ) : ?>
-					<?php $google_url = NNR_ICS::get_google_url( $event['id'] ); ?>
 					<span class="nnr-event-card__cal">
 						<button type="button" class="nnr-event-card__ics" aria-haspopup="true" aria-expanded="false" title="<?php esc_attr_e( 'Add to Calendar', 'nnr-events' ); ?>" aria-label="<?php esc_attr_e( 'Add to Calendar', 'nnr-events' ); ?>">
 							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -42,10 +41,29 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 							</svg>
 						</button>
 						<span class="nnr-event-card__cal-menu" hidden>
-							<?php if ( $google_url ) : ?>
-								<a href="<?php echo esc_url( $google_url ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Google Calendar', 'nnr-events' ); ?></a>
+							<?php if ( $event['multi_session'] ) : ?>
+								<?php foreach ( $event['sessions'] as $session ) : ?>
+									<?php $session_google_url = NNR_ICS::get_google_url_for_session( $event['id'], $session ); ?>
+									<?php if ( $session_google_url ) : ?>
+										<a href="<?php echo esc_url( $session_google_url ); ?>" target="_blank" rel="noopener">
+											<?php
+											printf(
+												/* translators: %s: session date/time, e.g. "Fri, Sep 11 · 6:00 PM" */
+												esc_html__( 'Add %s to Google Calendar', 'nnr-events' ),
+												wp_kses( NNR_Shortcode::format_session_label( $session ), array() )
+											);
+											?>
+										</a>
+									<?php endif; ?>
+								<?php endforeach; ?>
+								<a href="<?php echo esc_url( NNR_ICS::get_url( $event['id'] ) ); ?>"><?php esc_html_e( 'Download all (.ics)', 'nnr-events' ); ?></a>
+							<?php else : ?>
+								<?php $google_url = NNR_ICS::get_google_url( $event['id'] ); ?>
+								<?php if ( $google_url ) : ?>
+									<a href="<?php echo esc_url( $google_url ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Google Calendar', 'nnr-events' ); ?></a>
+								<?php endif; ?>
+								<a href="<?php echo esc_url( NNR_ICS::get_url( $event['id'] ) ); ?>"><?php esc_html_e( 'Apple / Outlook (.ics)', 'nnr-events' ); ?></a>
 							<?php endif; ?>
-							<a href="<?php echo esc_url( NNR_ICS::get_url( $event['id'] ) ); ?>"><?php esc_html_e( 'Apple / Outlook (.ics)', 'nnr-events' ); ?></a>
 						</span>
 					</span>
 				<?php endif; ?>
@@ -55,7 +73,13 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 			<?php endif; ?>
 		</div>
 
-		<?php if ( $range_note ) : ?>
+		<?php if ( $event['multi_session'] ) : ?>
+			<div class="nnr-event-card__sessions">
+				<?php foreach ( $event['sessions'] as $session ) : ?>
+					<div class="nnr-event-card__session-line"><?php echo NNR_Shortcode::format_session_label( $session ); /* phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- already escaped in format_session_label() */ ?></div>
+				<?php endforeach; ?>
+			</div>
+		<?php elseif ( $range_note ) : ?>
 			<div class="nnr-event-card__range"><?php echo $range_note; /* phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- already escaped in format_date_range_note() */ ?></div>
 		<?php endif; ?>
 
