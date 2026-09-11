@@ -11,6 +11,8 @@ class NNR_Admin_List {
 
 	const FILTER_KEY = 'nnr_event_status';
 
+	const QUICK_EDIT_FIELDS = array( '_nnr_start_date', '_nnr_start_time', '_nnr_end_date', '_nnr_end_time', '_nnr_venue', '_nnr_price' );
+
 	public function __construct() {
 		add_filter( 'views_edit-event', array( $this, 'add_expired_view' ) );
 		add_action( 'pre_get_posts', array( $this, 'filter_expired_query' ) );
@@ -18,6 +20,64 @@ class NNR_Admin_List {
 		add_filter( 'manage_event_posts_columns', array( $this, 'add_status_column' ) );
 		add_filter( 'manage_edit-event_sortable_columns', array( $this, 'add_sortable_columns' ) );
 		add_action( 'manage_event_posts_custom_column', array( $this, 'render_status_column' ), 10, 2 );
+		add_action( 'quick_edit_custom_box', array( $this, 'render_quick_edit_fields' ), 10, 2 );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_quick_edit_script' ) );
+	}
+
+	public function enqueue_quick_edit_script( $hook ) {
+		if ( 'edit.php' !== $hook || 'event' !== ( $_GET['post_type'] ?? '' ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			return;
+		}
+
+		wp_enqueue_script(
+			'nnr-events-quick-edit',
+			NNR_EVENTS_URL . 'assets/js/admin-quick-edit.js',
+			array( 'jquery', 'inline-edit-post' ),
+			NNR_EVENTS_VERSION,
+			true
+		);
+	}
+
+	/**
+	 * The Quick Edit fields for Start/End Date+Time, Venue, and Price —
+	 * Description, Image, Ticket URL etc. are left to the full editor since
+	 * an inline row isn't a great place for a rich text field or a repeater.
+	 */
+	public function render_quick_edit_fields( $column_name, $post_type ) {
+		if ( 'nnr_start_date' !== $column_name || 'event' !== $post_type ) {
+			return;
+		}
+		?>
+		<fieldset class="inline-edit-col-right nnr-quick-edit">
+			<div class="inline-edit-col">
+				<label>
+					<span class="title"><?php esc_html_e( 'Start Date', 'nnr-events' ); ?></span>
+					<input type="date" name="_nnr_start_date" />
+				</label>
+				<label>
+					<span class="title"><?php esc_html_e( 'Start Time', 'nnr-events' ); ?></span>
+					<input type="time" name="_nnr_start_time" />
+				</label>
+				<label>
+					<span class="title"><?php esc_html_e( 'End Date', 'nnr-events' ); ?></span>
+					<input type="date" name="_nnr_end_date" />
+				</label>
+				<label>
+					<span class="title"><?php esc_html_e( 'End Time', 'nnr-events' ); ?></span>
+					<input type="time" name="_nnr_end_time" />
+				</label>
+				<label>
+					<span class="title"><?php esc_html_e( 'Venue', 'nnr-events' ); ?></span>
+					<input type="text" name="_nnr_venue" />
+				</label>
+				<label>
+					<span class="title"><?php esc_html_e( 'Price', 'nnr-events' ); ?></span>
+					<input type="text" name="_nnr_price" />
+				</label>
+				<input type="hidden" name="<?php echo esc_attr( NNR_Meta_Box::NONCE_NAME ); ?>" class="nnr-quick-edit-nonce" value="" />
+			</div>
+		</fieldset>
+		<?php
 	}
 
 	/**
@@ -216,6 +276,8 @@ class NNR_Admin_List {
 			return;
 		}
 
+		$this->render_quick_edit_inline_data( $post_id );
+
 		if ( $recurring ) {
 			echo '<span style="color:#4d611f;font-weight:600;">' . esc_html__( 'Weekly', 'nnr-events' ) . '</span>';
 			return;
@@ -229,5 +291,19 @@ class NNR_Admin_List {
 		}
 
 		echo '<span style="color:#2271b1;">' . esc_html__( 'Upcoming', 'nnr-events' ) . '</span>';
+	}
+
+	/**
+	 * A hidden per-row data block the Quick Edit JS reads from to populate
+	 * its fields, since WordPress only knows how to do that for its own
+	 * built-in columns.
+	 */
+	private function render_quick_edit_inline_data( $post_id ) {
+		echo '<div class="hidden nnr-quick-edit-data" id="nnr-inline-' . (int) $post_id . '"';
+		foreach ( self::QUICK_EDIT_FIELDS as $key ) {
+			$attr = str_replace( '_', '-', substr( $key, 1 ) );
+			echo ' data-' . esc_attr( $attr ) . '="' . esc_attr( get_post_meta( $post_id, $key, true ) ) . '"';
+		}
+		echo ' data-nonce="' . esc_attr( wp_create_nonce( NNR_Meta_Box::NONCE_ACTION ) ) . '"></div>';
 	}
 }

@@ -45,6 +45,10 @@ class NNR_Meta_Box {
 
 	public function render( $post ) {
 		wp_nonce_field( self::NONCE_ACTION, self::NONCE_NAME );
+		// Marks this as the full meta box (vs. Quick Edit, which posts only a
+		// subset of fields) so save() knows whether an absent checkbox means
+		// "leave it alone" or "user unchecked it".
+		echo '<input type="hidden" name="_nnr_full_form" value="1" />';
 
 		$values = array();
 		foreach ( $this->fields as $key => $field ) {
@@ -284,9 +288,27 @@ class NNR_Meta_Box {
 			return;
 		}
 
+		$is_full_form = isset( $_POST['_nnr_full_form'] );
+
+		// For a multi-session event, these four are derived from the
+		// sessions list (see save_sessions()) rather than directly editable.
+		// Quick Edit has no sessions UI, so quick-editing them there would
+		// just desync from the real per-day times — skip in that case.
+		$derived_date_keys = array( '_nnr_start_date', '_nnr_start_time', '_nnr_end_date', '_nnr_end_time' );
+		$is_multi_session  = '1' === get_post_meta( $post_id, '_nnr_multi_session', true );
+
 		foreach ( $this->fields as $key => $field ) {
+			if ( ! $is_full_form && $is_multi_session && in_array( $key, $derived_date_keys, true ) ) {
+				continue;
+			}
 			if ( 'checkbox' === $field['type'] ) {
-				update_post_meta( $post_id, $key, isset( $_POST[ $key ] ) ? '1' : '0' );
+				// Only the full meta box submits every checkbox, so an absent
+				// one there really does mean "unchecked". Quick Edit posts a
+				// smaller subset of fields — an absent checkbox there just
+				// means it wasn't part of that form, not that it was cleared.
+				if ( $is_full_form ) {
+					update_post_meta( $post_id, $key, isset( $_POST[ $key ] ) ? '1' : '0' );
+				}
 				continue;
 			}
 
@@ -319,7 +341,11 @@ class NNR_Meta_Box {
 			update_post_meta( $post_id, $key, $value );
 		}
 
-		$this->save_sessions( $post_id );
+		// Sessions are only editable via the full meta box (Quick Edit has no
+		// repeater for them) — skip so a Quick Edit save can't wipe them out.
+		if ( $is_full_form ) {
+			$this->save_sessions( $post_id );
+		}
 	}
 
 	/**

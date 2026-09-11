@@ -371,6 +371,22 @@ class NNR_Shortcode {
 	}
 
 	/**
+	 * True for multi-day (non-recurring) events where today falls between
+	 * the start and end date, inclusive.
+	 */
+	public static function is_ongoing( $event ) {
+		if ( $event['recurring'] || ! $event['start_date'] || ! $event['end_date'] ) {
+			return false;
+		}
+		if ( $event['end_date'] === $event['start_date'] ) {
+			return false;
+		}
+
+		$today = current_time( 'Y-m-d' );
+		return $event['start_date'] <= $today && $today <= $event['end_date'];
+	}
+
+	/**
 	 * One line per day for multi-session events, e.g. "Fri, Sep 11 · 6:00 PM
 	 * – 9:00 PM". Stacked (one per session) rather than joined into a single
 	 * line, since that reads more clearly and avoids the wrapping problems

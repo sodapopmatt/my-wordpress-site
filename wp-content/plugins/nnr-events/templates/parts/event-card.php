@@ -70,6 +70,8 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 			</span>
 			<?php if ( $event['recurring'] ) : ?>
 				<span class="nnr-event-card__badge"><?php esc_html_e( 'Weekly', 'nnr-events' ); ?></span>
+			<?php elseif ( NNR_Shortcode::is_ongoing( $event ) ) : ?>
+				<span class="nnr-event-card__badge"><?php esc_html_e( 'Ongoing', 'nnr-events' ); ?></span>
 			<?php endif; ?>
 		</div>
 
