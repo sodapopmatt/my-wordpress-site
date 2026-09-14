@@ -88,11 +88,14 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 		<h3 class="nnr-event-card__title"><?php echo esc_html( $event['title'] ); ?></h3>
 
 		<?php if ( $event['venue'] || $event['address'] ) : ?>
+			<?php $maps_url = NNR_Shortcode::get_maps_url( $event ); ?>
 			<div class="nnr-event-card__venue">
+				<?php if ( $maps_url ) : ?><a href="<?php echo esc_url( $maps_url ); ?>" target="_blank" rel="noopener" class="nnr-event-card__venue-link"><?php endif; ?>
 				<?php echo esc_html( $event['venue'] ); ?>
 				<?php if ( $event['address'] ) : ?>
 					<span class="nnr-event-card__addr">&mdash; <?php echo esc_html( $event['address'] ); ?></span>
 				<?php endif; ?>
+				<?php if ( $maps_url ) : ?></a><?php endif; ?>
 			</div>
 		<?php endif; ?>
 

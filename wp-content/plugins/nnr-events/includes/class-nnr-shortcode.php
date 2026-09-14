@@ -29,6 +29,21 @@ class NNR_Shortcode {
 	}
 
 	/**
+	 * Google Maps search link for the venue/address, or '' if neither is set.
+	 */
+	public static function get_maps_url( $event ) {
+		$venue    = trim( $event['venue'] );
+		$address  = trim( $event['address'] );
+		$location = trim( $venue . ( $venue && $address ? ', ' : '' ) . $address );
+
+		if ( '' === $location ) {
+			return '';
+		}
+
+		return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( $location );
+	}
+
+	/**
 	 * Prefers a directly linked image (no Media Library upload needed) over
 	 * the featured image, so events don't have to add to the media library.
 	 */

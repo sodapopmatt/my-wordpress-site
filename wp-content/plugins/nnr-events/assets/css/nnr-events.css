@@ -246,6 +246,17 @@
 	color: var(--nnr-text);
 }
 
+.nnr-event-card__venue-link {
+	color: inherit;
+	text-decoration: none;
+}
+
+.nnr-event-card__venue-link:hover,
+.nnr-event-card__venue-link:focus {
+	text-decoration: underline;
+	color: var(--nnr-accent);
+}
+
 .nnr-event-card__addr {
 	opacity: 0.8;
 }
