@@ -59,6 +59,14 @@ class NNR_Admin_List {
 			<?php endforeach; ?>
 		</select>
 		<?php
+		// WordPress's own filter form already carries a hidden post_status
+		// field, so applying this dropdown while on "Draft" stays on
+		// "Draft" for free. There's no such field for our own Expired flag
+		// though, so without this, filtering by category while on
+		// "Expired" would silently drop back to "Active".
+		if ( isset( $_GET[ self::FILTER_KEY ] ) && 'expired' === $_GET[ self::FILTER_KEY ] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			echo '<input type="hidden" name="' . esc_attr( self::FILTER_KEY ) . '" value="expired" />';
+		}
 	}
 
 	public function filter_by_category( $query ) {
@@ -305,7 +313,14 @@ class NNR_Admin_List {
 			return;
 		}
 
-		if ( isset( $_GET['post_status'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		// WordPress's own filter form carries a hidden post_status field
+		// that defaults to "all" whenever no specific status view is
+		// active — including while on the default Active view itself, e.g.
+		// after submitting the category dropdown. Treat that the same as
+		// no post_status at all, so filtering by category doesn't silently
+		// drop out of "Active" into "every status".
+		$requested_status = isset( $_GET['post_status'] ) ? wp_unslash( $_GET['post_status'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( '' !== $requested_status && 'all' !== $requested_status ) {
 			return;
 		}
 
