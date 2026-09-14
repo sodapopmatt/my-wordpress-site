@@ -135,6 +135,18 @@ class NNR_Meta_Box {
 								'teeny'         => true,
 								'media_buttons' => false,
 								'quicktags'     => true,
+								// The block editor's resizable "Meta Boxes" panel can
+								// finish laying out after TinyMCE has already
+								// initialized, occasionally leaving the iframe body
+								// not actually contentEditable (looks normal, but
+								// clicks don't place a cursor). Binding through
+								// TinyMCE's own event system (rather than a plain
+								// DOM listener on the parent page) is what's needed
+								// here, since a click inside the iframe never
+								// bubbles out to the parent document at all.
+								'tinymce'       => array(
+									'setup' => 'function(ed){function fix(){var b=ed.getBody();if(b&&"true"!==b.contentEditable){b.setAttribute("contenteditable","true");}}ed.on("init click focus",fix);}',
+								),
 							)
 						);
 						?>
@@ -202,6 +214,72 @@ class NNR_Meta_Box {
 				endInput.value = startInput.value;
 				syncing = false;
 			} );
+		} )();
+
+		( function () {
+			// The real fix for the "can't click into the Description editor"
+			// bug: something in the block editor's meta box layout ends up
+			// detaching TinyMCE's iframe body from the live DOM — confirmed
+			// via tinymce.get(id).getBody() no longer matching the iframe's
+			// live document.body (two different, disconnected nodes).
+			// TinyMCE keeps operating on the stale one, so clicks on the
+			// real, visible one do nothing. Rather than chase the exact
+			// WordPress-internal event that causes this, check directly for
+			// the mismatch once things have settled and have WordPress
+			// properly re-initialize the editor when it's found.
+			var editorId = 'nnr_description_editor';
+
+			function isBroken() {
+				if ( 'undefined' === typeof tinymce ) {
+					return false;
+				}
+				var ed = tinymce.get( editorId );
+				var iframe = document.getElementById( editorId + '_ifr' );
+				if ( ! ed || ! iframe || ! iframe.contentDocument ) {
+					return false;
+				}
+				return ed.getBody() !== iframe.contentDocument.body;
+			}
+
+			function reinit() {
+				if ( ! window.wp || ! wp.editor || 'function' !== typeof wp.editor.remove ) {
+					return;
+				}
+				var settings = {};
+				if ( window.tinyMCEPreInit ) {
+					if ( tinyMCEPreInit.mceInit && tinyMCEPreInit.mceInit[ editorId ] ) {
+						settings.tinymce = tinyMCEPreInit.mceInit[ editorId ];
+					}
+					if ( tinyMCEPreInit.qtInit && tinyMCEPreInit.qtInit[ editorId ] ) {
+						settings.quicktags = tinyMCEPreInit.qtInit[ editorId ];
+					}
+				}
+				wp.editor.remove( editorId );
+				wp.editor.initialize( editorId, settings );
+			}
+
+			function checkAndFix() {
+				if ( isBroken() ) {
+					reinit();
+				}
+			}
+
+			// Checked once shortly after load (once the block editor's own
+			// setup has had time to settle) and again on first interaction
+			// with the field, in case something re-breaks it later.
+			setTimeout( checkAndFix, 1500 );
+			setTimeout( checkAndFix, 4000 );
+
+			var wrap = document.getElementById( 'wp-' + editorId + '-wrap' );
+			if ( wrap ) {
+				wrap.addEventListener(
+					'mouseenter',
+					function () {
+						checkAndFix();
+					},
+					{ once: true }
+				);
+			}
 		} )();
 
 		( function () {
