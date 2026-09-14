@@ -339,6 +339,7 @@ class NNR_Admin_List {
 			if ( 'title' === $key ) {
 				$new['nnr_status']     = __( 'Status', 'nnr-events' );
 				$new['nnr_start_date'] = __( 'Start Date', 'nnr-events' );
+				$new['nnr_start_time'] = __( 'Start Time', 'nnr-events' );
 			}
 		}
 		return $new;
@@ -403,13 +404,22 @@ class NNR_Admin_List {
 					echo esc_html( ' &ndash; ' . date_i18n( 'M j, Y', $end_ts ) );
 				}
 			}
+			return;
+		}
 
-			if ( $start_time ) {
-				$time_ts = strtotime( $start_time );
-				if ( $time_ts ) {
-					echo '<br /><span style="color:#646970;">' . esc_html( date_i18n( 'g:i A', $time_ts ) ) . '</span>';
-				}
+		if ( 'nnr_start_time' === $column ) {
+			if ( ! $start_time ) {
+				echo '&#8212;';
+				return;
 			}
+
+			$time_ts = strtotime( $start_time );
+			if ( ! $time_ts ) {
+				echo '&#8212;';
+				return;
+			}
+
+			echo esc_html( date_i18n( 'g:i A', $time_ts ) );
 			return;
 		}
 
