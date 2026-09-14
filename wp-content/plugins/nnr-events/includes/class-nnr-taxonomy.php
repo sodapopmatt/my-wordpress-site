@@ -33,7 +33,12 @@ class NNR_Taxonomy {
 				'public'             => false,
 				'publicly_queryable' => false,
 				'rewrite'            => false,
-				'query_var'          => false,
+				// Needed so the Events admin list shows its automatic
+				// category filter dropdown (WordPress core only renders it
+				// when a taxonomy's query_var is truthy). publicly_queryable
+				// staying false keeps this from being usable on the
+				// frontend main query either way.
+				'query_var'          => true,
 				'show_ui'            => true,
 				'show_in_menu'       => true,
 				'show_admin_column'  => true,

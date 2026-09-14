@@ -14,14 +14,81 @@ class NNR_Admin_List {
 	const QUICK_EDIT_FIELDS = array( '_nnr_start_date', '_nnr_start_time', '_nnr_end_date', '_nnr_end_time', '_nnr_venue', '_nnr_price' );
 
 	public function __construct() {
-		add_filter( 'views_edit-event', array( $this, 'add_expired_view' ) );
+		add_filter( 'views_edit-event', array( $this, 'build_views' ) );
 		add_action( 'pre_get_posts', array( $this, 'filter_expired_query' ) );
+		add_action( 'pre_get_posts', array( $this, 'filter_active_query' ) );
 		add_action( 'pre_get_posts', array( $this, 'sort_by_start_date' ) );
+		add_action( 'pre_get_posts', array( $this, 'filter_by_category' ) );
 		add_filter( 'manage_event_posts_columns', array( $this, 'add_status_column' ) );
 		add_filter( 'manage_edit-event_sortable_columns', array( $this, 'add_sortable_columns' ) );
 		add_action( 'manage_event_posts_custom_column', array( $this, 'render_status_column' ), 10, 2 );
 		add_action( 'quick_edit_custom_box', array( $this, 'render_quick_edit_fields' ), 10, 2 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_quick_edit_script' ) );
+		add_action( 'restrict_manage_posts', array( $this, 'render_category_dropdown' ) );
+	}
+
+	/**
+	 * WordPress only auto-generates a category filter dropdown for the
+	 * built-in "category" taxonomy on regular posts — a custom taxonomy
+	 * like this one needs its dropdown added explicitly.
+	 */
+	public function render_category_dropdown( $post_type ) {
+		if ( 'event' !== $post_type ) {
+			return;
+		}
+
+		$terms = get_terms(
+			array(
+				'taxonomy'   => NNR_Taxonomy::TAXONOMY,
+				'hide_empty' => false,
+			)
+		);
+		if ( ! is_array( $terms ) || empty( $terms ) ) {
+			return;
+		}
+
+		$current = isset( $_GET['event_category'] ) ? sanitize_title( wp_unslash( $_GET['event_category'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		?>
+		<label class="screen-reader-text" for="nnr-filter-by-category"><?php esc_html_e( 'Filter by category', 'nnr-events' ); ?></label>
+		<select name="event_category" id="nnr-filter-by-category">
+			<option value=""><?php esc_html_e( 'All categories', 'nnr-events' ); ?></option>
+			<?php foreach ( $terms as $term ) : ?>
+				<option value="<?php echo esc_attr( $term->slug ); ?>" <?php selected( $current, $term->slug ); ?>>
+					<?php echo esc_html( $term->name ); ?>
+				</option>
+			<?php endforeach; ?>
+		</select>
+		<?php
+	}
+
+	public function filter_by_category( $query ) {
+		if ( ! is_admin() || ! $query->is_main_query() ) {
+			return;
+		}
+
+		if ( 'event' !== $query->get( 'post_type' ) ) {
+			return;
+		}
+
+		if ( empty( $_GET['event_category'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			return;
+		}
+
+		$slug = sanitize_title( wp_unslash( $_GET['event_category'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( ! $slug ) {
+			return;
+		}
+
+		$query->set(
+			'tax_query',
+			array(
+				array(
+					'taxonomy' => NNR_Taxonomy::TAXONOMY,
+					'field'    => 'slug',
+					'terms'    => $slug,
+				),
+			)
+		);
 	}
 
 	public function enqueue_quick_edit_script( $hook ) {
@@ -143,36 +210,68 @@ class NNR_Admin_List {
 		);
 	}
 
-	public function add_expired_view( $views ) {
-		$count = new WP_Query(
+	/**
+	 * Replaces WordPress's default views row (All / Published / Draft /
+	 * Trash / ...) with exactly three: Active (published & not expired —
+	 * the default view), Draft, and Expired (published & expired). Trash
+	 * stays reachable via row actions/bulk actions; it's just not a
+	 * headline view here.
+	 */
+	public function build_views( $views ) {
+		$is_draft_current   = isset( $_GET['post_status'] ) && 'draft' === $_GET['post_status']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$is_expired_current = isset( $_GET[ self::FILTER_KEY ] ) && 'expired' === $_GET[ self::FILTER_KEY ]; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$is_active_current  = ! $is_draft_current && ! $is_expired_current;
+
+		$active_count = new WP_Query(
 			array(
 				'post_type'      => 'event',
-				'post_status'    => array( 'publish', 'draft', 'pending', 'future', 'private' ),
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+				'meta_query'     => NNR_Query::upcoming_meta_query(),
+			)
+		);
+
+		$expired_count = new WP_Query(
+			array(
+				'post_type'      => 'event',
+				'post_status'    => 'publish',
 				'posts_per_page' => 1,
 				'fields'         => 'ids',
 				'meta_query'     => self::expired_meta_query(),
 			)
 		);
 
-		$is_current = isset( $_GET[ self::FILTER_KEY ] ) && 'expired' === $_GET[ self::FILTER_KEY ]; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$counts      = wp_count_posts( 'event' );
+		$draft_count = isset( $counts->draft ) ? (int) $counts->draft : 0;
 
-		$url = add_query_arg(
-			array(
-				'post_type'        => 'event',
-				self::FILTER_KEY   => 'expired',
-			),
-			admin_url( 'edit.php' )
-		);
+		$new_views = array();
 
-		$views['nnr_expired'] = sprintf(
+		$new_views['nnr_active'] = sprintf(
 			'<a href="%s"%s>%s <span class="count">(%d)</span></a>',
-			esc_url( $url ),
-			$is_current ? ' class="current" aria-current="page"' : '',
-			esc_html__( 'Expired', 'nnr-events' ),
-			$count->found_posts
+			esc_url( admin_url( 'edit.php?post_type=event' ) ),
+			$is_active_current ? ' class="current" aria-current="page"' : '',
+			esc_html__( 'Active', 'nnr-events' ),
+			$active_count->found_posts
 		);
 
-		return $views;
+		$new_views['draft'] = sprintf(
+			'<a href="%s"%s>%s <span class="count">(%d)</span></a>',
+			esc_url( admin_url( 'edit.php?post_type=event&post_status=draft' ) ),
+			$is_draft_current ? ' class="current" aria-current="page"' : '',
+			esc_html__( 'Draft', 'nnr-events' ),
+			$draft_count
+		);
+
+		$new_views['nnr_expired'] = sprintf(
+			'<a href="%s"%s>%s <span class="count">(%d)</span></a>',
+			esc_url( admin_url( 'edit.php?post_type=event&' . self::FILTER_KEY . '=expired' ) ),
+			$is_expired_current ? ' class="current" aria-current="page"' : '',
+			esc_html__( 'Expired', 'nnr-events' ),
+			$expired_count->found_posts
+		);
+
+		return $new_views;
 	}
 
 	public function filter_expired_query( $query ) {
@@ -188,7 +287,34 @@ class NNR_Admin_List {
 			return;
 		}
 
+		$query->set( 'post_status', 'publish' );
 		$query->set( 'meta_query', self::expired_meta_query() );
+	}
+
+	/**
+	 * The default view: published events that aren't expired. Applies
+	 * whenever no other status is explicitly chosen — a fresh visit to the
+	 * list included — so "Active" is what people land on by default.
+	 */
+	public function filter_active_query( $query ) {
+		if ( ! is_admin() || ! $query->is_main_query() ) {
+			return;
+		}
+
+		if ( 'event' !== $query->get( 'post_type' ) ) {
+			return;
+		}
+
+		if ( isset( $_GET['post_status'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			return;
+		}
+
+		if ( isset( $_GET[ self::FILTER_KEY ] ) && 'expired' === $_GET[ self::FILTER_KEY ] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			return;
+		}
+
+		$query->set( 'post_status', 'publish' );
+		$query->set( 'meta_query', NNR_Query::upcoming_meta_query() );
 	}
 
 	public function add_status_column( $columns ) {
