@@ -58,24 +58,34 @@ class NNR_Shortcode {
 	private function normalize_atts( $atts ) {
 		$atts = shortcode_atts(
 			array(
-				'category' => '',
-				'limit'    => 5,
-				'columns'  => 3,
-				'layout'   => 'grid',
-				'image'    => 'show',
-				'color'    => '',
-				'filter'   => 'none',
+				'category'         => '',
+				'default_category' => '',
+				'limit'            => 5,
+				'columns'          => 3,
+				'layout'           => 'grid',
+				'image'            => 'show',
+				'color'            => '',
+				'filter'           => 'none',
 			),
 			$atts,
 			'nnr_events'
 		);
 
-		$atts['category'] = $this->parse_categories( $atts['category'] );
-		$atts['limit']    = min( 20, max( 1, (int) $atts['limit'] ) );
-		$atts['columns']  = min( 4, max( 1, (int) $atts['columns'] ) );
-		$atts['layout']   = ( 'list' === $atts['layout'] ) ? 'list' : 'grid';
-		$atts['image']    = ( 'hide' === $atts['image'] ) ? 'hide' : 'show';
-		$atts['filter']   = ( 'pills' === $atts['filter'] ) ? 'pills' : 'none';
+		$atts['category']         = $this->parse_categories( $atts['category'] );
+		$atts['default_category'] = sanitize_title( trim( $atts['default_category'] ) );
+
+		// If the shortcode already restricts to specific categories, a
+		// default outside that set would filter results with no matching
+		// pill shown as active — fall back to "All" instead.
+		if ( $atts['default_category'] && ! empty( $atts['category'] ) && ! in_array( $atts['default_category'], $atts['category'], true ) ) {
+			$atts['default_category'] = '';
+		}
+
+		$atts['limit']            = min( 20, max( 1, (int) $atts['limit'] ) );
+		$atts['columns']          = min( 4, max( 1, (int) $atts['columns'] ) );
+		$atts['layout']           = ( 'list' === $atts['layout'] ) ? 'list' : 'grid';
+		$atts['image']            = ( 'hide' === $atts['image'] ) ? 'hide' : 'show';
+		$atts['filter']           = ( 'pills' === $atts['filter'] ) ? 'pills' : 'none';
 
 		$color = sanitize_hex_color( $atts['color'] );
 		if ( ! $color ) {
@@ -102,8 +112,16 @@ class NNR_Shortcode {
 	}
 
 	public function render( $atts ) {
-		$atts  = $this->normalize_atts( $atts );
-		$query = $this->run_query( $atts, 0 );
+		$atts = $this->normalize_atts( $atts );
+
+		// The default_category (if set) determines what's shown/queried on
+		// first load, independently of the broader category restriction the
+		// shortcode itself may already impose on which pills are offered.
+		$initial_category = $atts['default_category'] ? array( $atts['default_category'] ) : $atts['category'];
+		$query_atts        = $atts;
+		$query_atts['category'] = $initial_category;
+
+		$query = $this->run_query( $query_atts, 0 );
 
 		if ( $query->have_posts() ) {
 			list( $cards_html, $events_for_schema ) = $this->render_cards( $query, $atts );
@@ -129,7 +147,7 @@ class NNR_Shortcode {
 					class="nnr-events__load-more"
 					data-offset="<?php echo esc_attr( $atts['limit'] ); ?>"
 					data-limit="<?php echo esc_attr( $atts['limit'] ); ?>"
-					data-category="<?php echo esc_attr( implode( ',', $atts['category'] ) ); ?>"
+					data-category="<?php echo esc_attr( implode( ',', $initial_category ) ); ?>"
 					data-layout="<?php echo esc_attr( $atts['layout'] ); ?>"
 					data-image="<?php echo esc_attr( $atts['image'] ); ?>"
 					data-color="<?php echo esc_attr( $atts['color'] ); ?>"
@@ -149,11 +167,13 @@ class NNR_Shortcode {
 	}
 
 	/**
-	 * Renders an "All" pill (resetting to whatever category restriction the
-	 * shortcode/block itself was given) plus one pill per category. If the
+	 * Renders one pill per category plus an "All" pill (resetting to
+	 * whatever category restriction the shortcode/block itself was given),
+	 * kept last so people scan the specific categories first. If the
 	 * shortcode already restricts to specific categories, only those are
 	 * offered — "All" means "all of the ones this listing allows", not
-	 * every category on the site.
+	 * every category on the site. The default_category attribute (if set)
+	 * starts that pill active instead of "All".
 	 */
 	private function render_filter_pills( $atts ) {
 		if ( ! empty( $atts['category'] ) ) {
@@ -180,19 +200,22 @@ class NNR_Shortcode {
 			return '';
 		}
 
-		$all_value = implode( ',', $atts['category'] );
+		$all_value  = implode( ',', $atts['category'] );
+		$default    = $atts['default_category'];
+		$all_active = '' === $default;
 
 		ob_start();
 		?>
 		<div class="nnr-events__filters" role="group" aria-label="<?php esc_attr_e( 'Filter events by category', 'nnr-events' ); ?>">
-			<button type="button" class="nnr-events__filter-pill is-active" data-category="<?php echo esc_attr( $all_value ); ?>" aria-pressed="true">
-				<?php esc_html_e( 'All', 'nnr-events' ); ?>
-			</button>
 			<?php foreach ( $terms as $term ) : ?>
-				<button type="button" class="nnr-events__filter-pill" data-category="<?php echo esc_attr( $term->slug ); ?>" aria-pressed="false">
+				<?php $is_active = ( $term->slug === $default ); ?>
+				<button type="button" class="nnr-events__filter-pill<?php echo $is_active ? ' is-active' : ''; ?>" data-category="<?php echo esc_attr( $term->slug ); ?>" aria-pressed="<?php echo $is_active ? 'true' : 'false'; ?>">
 					<?php echo esc_html( $term->name ); ?>
 				</button>
 			<?php endforeach; ?>
+			<button type="button" class="nnr-events__filter-pill<?php echo $all_active ? ' is-active' : ''; ?>" data-category="<?php echo esc_attr( $all_value ); ?>" aria-pressed="<?php echo $all_active ? 'true' : 'false'; ?>">
+				<?php esc_html_e( 'All', 'nnr-events' ); ?>
+			</button>
 		</div>
 		<?php
 		return ob_get_clean();

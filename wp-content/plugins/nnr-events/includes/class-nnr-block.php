@@ -89,6 +89,10 @@ class NNR_Block {
 						'type'    => 'string',
 						'default' => '',
 					),
+					'default_category' => array(
+						'type'    => 'string',
+						'default' => '',
+					),
 					'limit'    => array(
 						'type'    => 'number',
 						'default' => 5,

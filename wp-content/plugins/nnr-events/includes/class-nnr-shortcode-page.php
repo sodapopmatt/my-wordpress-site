@@ -103,6 +103,11 @@ class NNR_Shortcode_Page {
 						<td>none</td>
 						<td><?php esc_html_e( '"pills" adds clickable category pills above the listing that filter it live, without a page reload.', 'nnr-events' ); ?></td>
 					</tr>
+					<tr>
+						<td><code>default_category</code></td>
+						<td><em><?php esc_html_e( '(none — "All")', 'nnr-events' ); ?></em></td>
+						<td><?php esc_html_e( 'A single category slug to show/select by default on load (e.g. "live-music"). People can still switch to any other pill, including "All". Only takes effect if that category is one this shortcode already allows via the category attribute above (or if category is left blank).', 'nnr-events' ); ?></td>
+					</tr>
 				</tbody>
 			</table>
 			<p class="description">
@@ -175,6 +180,18 @@ class NNR_Shortcode_Page {
 						</td>
 					</tr>
 					<tr>
+						<th><label for="nnr-gen-default-category"><?php esc_html_e( 'Default Category', 'nnr-events' ); ?></label></th>
+						<td>
+							<select id="nnr-gen-default-category">
+								<option value=""><?php esc_html_e( 'All', 'nnr-events' ); ?></option>
+								<?php foreach ( $categories as $term ) : ?>
+									<option value="<?php echo esc_attr( $term->slug ); ?>"><?php echo esc_html( $term->name ); ?></option>
+								<?php endforeach; ?>
+							</select>
+							<p class="description"><?php esc_html_e( 'Which pill starts selected. People can still pick any other pill, including "All".', 'nnr-events' ); ?></p>
+						</td>
+					</tr>
+					<tr>
 						<th><?php esc_html_e( 'Shortcode', 'nnr-events' ); ?></th>
 						<td>
 							<input type="text" id="nnr-gen-output" readonly class="large-text code" style="max-width:500px;" value="[nnr_events]" />
@@ -222,6 +239,11 @@ class NNR_Shortcode_Page {
 				if (color) { parts.push('color="' + color + '"'); }
 
 				if ($('#nnr-gen-filter').is(':checked')) { parts.push('filter="pills"'); }
+
+				var defaultCategory = $('#nnr-gen-default-category').val();
+				if (defaultCategory && (!categories.length || categories.indexOf(defaultCategory) !== -1)) {
+					parts.push('default_category="' + defaultCategory + '"');
+				}
 
 				var shortcode = parts.length ? '[nnr_events ' + parts.join(' ') + ']' : '[nnr_events]';
 				$('#nnr-gen-output').val(shortcode);
