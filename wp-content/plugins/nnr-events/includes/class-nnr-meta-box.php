@@ -11,7 +11,7 @@ class NNR_Meta_Box {
 	/**
 	 * Field key => [ label, type ]. Type drives both the rendered input and sanitization.
 	 */
-	private $fields = array(
+	private static $fields = array(
 		'_nnr_start_date'      => array( 'label' => 'Start Date', 'type' => 'date' ),
 		'_nnr_start_time'      => array( 'label' => 'Start Time', 'type' => 'time' ),
 		'_nnr_end_date'        => array( 'label' => 'End Date', 'type' => 'date' ),
@@ -30,6 +30,15 @@ class NNR_Meta_Box {
 	public function __construct() {
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 		add_action( 'save_post_event', array( $this, 'save' ) );
+	}
+
+	/**
+	 * Single source of truth for which event meta keys exist and how each
+	 * is sanitized, so other admin UIs (e.g. NNR_Manage_Events) don't need
+	 * to hand-maintain a second copy of this list.
+	 */
+	public static function get_fields() {
+		return self::$fields;
 	}
 
 	public function add_meta_box() {
@@ -51,7 +60,7 @@ class NNR_Meta_Box {
 		echo '<input type="hidden" name="_nnr_full_form" value="1" />';
 
 		$values = array();
-		foreach ( $this->fields as $key => $field ) {
+		foreach ( self::$fields as $key => $field ) {
 			$values[ $key ] = get_post_meta( $post->ID, $key, true );
 		}
 
@@ -375,7 +384,7 @@ class NNR_Meta_Box {
 		$derived_date_keys = array( '_nnr_start_date', '_nnr_start_time', '_nnr_end_date', '_nnr_end_time' );
 		$is_multi_session  = '1' === get_post_meta( $post_id, '_nnr_multi_session', true );
 
-		foreach ( $this->fields as $key => $field ) {
+		foreach ( self::$fields as $key => $field ) {
 			if ( ! $is_full_form && $is_multi_session && in_array( $key, $derived_date_keys, true ) ) {
 				continue;
 			}

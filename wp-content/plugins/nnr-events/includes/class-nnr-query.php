@@ -52,6 +52,31 @@ class NNR_Query {
 	}
 
 	/**
+	 * A meta_query that matches every post regardless of whether
+	 * _nnr_start_date is set (an EXISTS/NOT EXISTS pair under an OR is
+	 * tautologically true) while still giving 'orderby' a named clause to
+	 * sort by. Plain top-level meta_key + orderby=meta_value instead
+	 * silently excludes any post without that meta row — fine for
+	 * Active/Expired, where "upcoming"/"expired" already implies a date
+	 * exists, but wrong for Draft/Trash/All, where a dateless event (very
+	 * plausible before it's ever been given a date) is completely normal
+	 * and should still show up in the list.
+	 */
+	public static function orderable_start_date_meta_query() {
+		return array(
+			'relation'              => 'OR',
+			'nnr_start_date_clause' => array(
+				'key'     => '_nnr_start_date',
+				'compare' => 'EXISTS',
+			),
+			array(
+				'key'     => '_nnr_start_date',
+				'compare' => 'NOT EXISTS',
+			),
+		);
+	}
+
+	/**
 	 * Build WP_Query args for "upcoming" events, ordered chronologically.
 	 *
 	 * @param array $overrides Extra/overriding WP_Query args (e.g. tax_query, posts_per_page).

@@ -7,6 +7,19 @@ class NNR_CPT {
 
 	public function __construct() {
 		add_action( 'init', array( $this, 'register' ) );
+		add_action( 'admin_menu', array( $this, 'remove_add_new_submenu' ), 999 );
+	}
+
+	/**
+	 * WordPress core adds this "Add New Event" submenu automatically for
+	 * any public CPT with show_ui — before the classic per-post screen was
+	 * the only way to create an event, it made sense as the default entry
+	 * point. Now that Quick Manage's own "Add New Event" button covers
+	 * that, this extra sidebar link is redundant clutter; the classic
+	 * screen is still reachable via "All Events" -> "Add New" at the top.
+	 */
+	public function remove_add_new_submenu() {
+		remove_submenu_page( 'edit.php?post_type=event', 'post-new.php?post_type=event' );
 	}
 
 	public function register() {

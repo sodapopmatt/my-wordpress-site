@@ -160,7 +160,7 @@ class NNR_Admin_List {
 	 * A multi-day event counts as expired only once its end date has passed,
 	 * mirroring the "upcoming" logic used by NNR_Query.
 	 */
-	private static function expired_meta_query() {
+	public static function expired_meta_query() {
 		$today = current_time( 'Y-m-d' );
 
 		return array(
@@ -220,15 +220,14 @@ class NNR_Admin_List {
 
 	/**
 	 * Replaces WordPress's default views row (All / Published / Draft /
-	 * Trash / ...) with exactly three: Active (published & not expired —
-	 * the default view), Draft, and Expired (published & expired). Trash
-	 * stays reachable via row actions/bulk actions; it's just not a
-	 * headline view here.
+	 * Trash / ...) with exactly four: Active (published & not expired —
+	 * the default view), Draft, Expired (published & expired), and Trash.
 	 */
 	public function build_views( $views ) {
 		$is_draft_current   = isset( $_GET['post_status'] ) && 'draft' === $_GET['post_status']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$is_trash_current   = isset( $_GET['post_status'] ) && 'trash' === $_GET['post_status']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$is_expired_current = isset( $_GET[ self::FILTER_KEY ] ) && 'expired' === $_GET[ self::FILTER_KEY ]; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$is_active_current  = ! $is_draft_current && ! $is_expired_current;
+		$is_active_current  = ! $is_draft_current && ! $is_trash_current && ! $is_expired_current;
 
 		$active_count = new WP_Query(
 			array(
@@ -252,6 +251,7 @@ class NNR_Admin_List {
 
 		$counts      = wp_count_posts( 'event' );
 		$draft_count = isset( $counts->draft ) ? (int) $counts->draft : 0;
+		$trash_count = isset( $counts->trash ) ? (int) $counts->trash : 0;
 
 		$new_views = array();
 
@@ -277,6 +277,14 @@ class NNR_Admin_List {
 			$is_expired_current ? ' class="current" aria-current="page"' : '',
 			esc_html__( 'Expired', 'nnr-events' ),
 			$expired_count->found_posts
+		);
+
+		$new_views['trash'] = sprintf(
+			'<a href="%s"%s>%s <span class="count">(%d)</span></a>',
+			esc_url( admin_url( 'edit.php?post_type=event&post_status=trash' ) ),
+			$is_trash_current ? ' class="current" aria-current="page"' : '',
+			esc_html__( 'Trash', 'nnr-events' ),
+			$trash_count
 		);
 
 		return $new_views;
@@ -364,6 +372,17 @@ class NNR_Admin_List {
 		// header) — default to soonest-first by start date instead of the
 		// normal newest-published-first.
 		if ( ! $query->get( 'orderby' ) && ! isset( $_GET['orderby'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$requested_status = isset( $_GET['post_status'] ) ? wp_unslash( $_GET['post_status'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			// Draft/Trash: unlike Active/Expired, a dateless event is
+			// completely normal here (often exactly why it's a draft, or
+			// it was trashed before ever getting a date) — sorting by
+			// meta_key/orderby=meta_value alone would silently exclude it,
+			// since that shortcut requires the meta row to exist.
+			if ( in_array( $requested_status, array( 'draft', 'trash' ), true ) ) {
+				$query->set( 'meta_query', NNR_Query::orderable_start_date_meta_query() );
+				$query->set( 'orderby', array( 'nnr_start_date_clause' => 'ASC' ) );
+				return;
+			}
 			$query->set( 'meta_key', '_nnr_start_date' );
 			$query->set( 'orderby', 'meta_value' );
 			$query->set( 'order', 'ASC' );
@@ -378,8 +397,39 @@ class NNR_Admin_List {
 		$query->set( 'orderby', 'meta_value' );
 	}
 
+	/**
+	 * Recurring/expired/upcoming determination shared by the Status column
+	 * here and by NNR_Manage_Events' own table, so both render identically
+	 * from one place. Returns [ 'label' => string, 'color' => css color ].
+	 */
+	public static function get_status( $post_id ) {
+		$recurring = '1' === get_post_meta( $post_id, '_nnr_recurring_weekly', true );
+
+		if ( $recurring ) {
+			return array(
+				'label' => __( 'Weekly', 'nnr-events' ),
+				'color' => '#4d611f',
+			);
+		}
+
+		$start_date    = get_post_meta( $post_id, '_nnr_start_date', true );
+		$end_date      = get_post_meta( $post_id, '_nnr_end_date', true );
+		$effective_end = $end_date ? $end_date : $start_date;
+
+		if ( $effective_end && $effective_end < current_time( 'Y-m-d' ) ) {
+			return array(
+				'label' => __( 'Expired', 'nnr-events' ),
+				'color' => '#b32d2e',
+			);
+		}
+
+		return array(
+			'label' => __( 'Upcoming', 'nnr-events' ),
+			'color' => '#2271b1',
+		);
+	}
+
 	public function render_status_column( $column, $post_id ) {
-		$recurring  = '1' === get_post_meta( $post_id, '_nnr_recurring_weekly', true );
 		$start_date = get_post_meta( $post_id, '_nnr_start_date', true );
 		$start_time = get_post_meta( $post_id, '_nnr_start_time', true );
 		$end_date   = get_post_meta( $post_id, '_nnr_end_date', true );
@@ -429,19 +479,8 @@ class NNR_Admin_List {
 
 		$this->render_quick_edit_inline_data( $post_id );
 
-		if ( $recurring ) {
-			echo '<span style="color:#4d611f;font-weight:600;">' . esc_html__( 'Weekly', 'nnr-events' ) . '</span>';
-			return;
-		}
-
-		$effective_end = $end_date ? $end_date : $start_date;
-
-		if ( $effective_end && $effective_end < current_time( 'Y-m-d' ) ) {
-			echo '<span style="color:#b32d2e;font-weight:600;">' . esc_html__( 'Expired', 'nnr-events' ) . '</span>';
-			return;
-		}
-
-		echo '<span style="color:#2271b1;">' . esc_html__( 'Upcoming', 'nnr-events' ) . '</span>';
+		$status = self::get_status( $post_id );
+		printf( '<span style="color:%s;font-weight:600;">%s</span>', esc_attr( $status['color'] ), esc_html( $status['label'] ) );
 	}
 
 	/**
