@@ -94,6 +94,7 @@
 			offset: btn.dataset.offset,
 			limit: btn.dataset.limit,
 			category: btn.dataset.category,
+			last_date: btn.dataset.lastDate,
 			layout: btn.dataset.layout,
 			image: btn.dataset.image,
 			color: btn.dataset.color,
@@ -104,6 +105,8 @@
 					observeReveal( grid );
 					checkExcerptOverflow( grid );
 				}
+
+				btn.dataset.lastDate = json.data.last_date || '';
 
 				if ( json.data.has_more ) {
 					btn.dataset.offset = String(
@@ -156,6 +159,7 @@
 			offset: 0,
 			limit: loadMoreBtn.dataset.limit,
 			category: category,
+			last_date: '',
 			layout: loadMoreBtn.dataset.layout,
 			image: loadMoreBtn.dataset.image,
 			color: loadMoreBtn.dataset.color,
@@ -168,6 +172,7 @@
 
 				loadMoreBtn.dataset.category = category;
 				loadMoreBtn.dataset.offset = loadMoreBtn.dataset.limit;
+				loadMoreBtn.dataset.lastDate = json.data.last_date || '';
 
 				loadMoreBtn.hidden = ! json.data.has_more;
 				if ( loadMoreWrap ) {

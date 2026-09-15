@@ -124,12 +124,13 @@ class NNR_Shortcode {
 		$query = $this->run_query( $query_atts, 0 );
 
 		if ( $query->have_posts() ) {
-			list( $cards_html, $events_for_schema ) = $this->render_cards( $query, $atts );
+			list( $cards_html, $events_for_schema, $last_date ) = $this->render_cards( $query, $atts );
 			$has_more = $query->found_posts > $atts['limit'];
 		} else {
 			$cards_html        = $this->empty_state_html();
 			$events_for_schema = array();
 			$has_more          = false;
+			$last_date         = '';
 		}
 
 		ob_start();
@@ -148,6 +149,7 @@ class NNR_Shortcode {
 					data-offset="<?php echo esc_attr( $atts['limit'] ); ?>"
 					data-limit="<?php echo esc_attr( $atts['limit'] ); ?>"
 					data-category="<?php echo esc_attr( implode( ',', $initial_category ) ); ?>"
+					data-last-date="<?php echo esc_attr( $last_date ); ?>"
 					data-layout="<?php echo esc_attr( $atts['layout'] ); ?>"
 					data-image="<?php echo esc_attr( $atts['image'] ); ?>"
 					data-color="<?php echo esc_attr( $atts['color'] ); ?>"
@@ -238,7 +240,8 @@ class NNR_Shortcode {
 			)
 		);
 
-		$offset = isset( $_POST['offset'] ) ? absint( $_POST['offset'] ) : 0;
+		$offset    = isset( $_POST['offset'] ) ? absint( $_POST['offset'] ) : 0;
+		$last_date = isset( $_POST['last_date'] ) ? sanitize_text_field( wp_unslash( $_POST['last_date'] ) ) : '';
 
 		$query = $this->run_query( $atts, $offset );
 
@@ -247,17 +250,19 @@ class NNR_Shortcode {
 				array(
 					'html'     => 0 === $offset ? $this->empty_state_html() : '',
 					'has_more' => false,
+					'last_date' => $last_date,
 				)
 			);
 		}
 
-		list( $cards_html, $events_for_schema ) = $this->render_cards( $query, $atts );
+		list( $cards_html, $events_for_schema, $last_date ) = $this->render_cards( $query, $atts, $last_date );
 		unset( $events_for_schema );
 
 		wp_send_json_success(
 			array(
-				'html'     => $cards_html,
-				'has_more' => $query->found_posts > ( $offset + $atts['limit'] ),
+				'html'      => $cards_html,
+				'has_more'  => $query->found_posts > ( $offset + $atts['limit'] ),
+				'last_date' => $last_date,
 			)
 		);
 	}
@@ -284,24 +289,64 @@ class NNR_Shortcode {
 	}
 
 	/**
-	 * Renders each post in $query through the event-card template.
+	 * Renders each post in $query through the event-card template, inserting
+	 * a date separator whenever the start date changes from the previous
+	 * card. $last_date carries the date already shown before this batch (the
+	 * tail end of a previous "Load More" page) so a group isn't split by a
+	 * duplicate separator across the page boundary.
 	 *
-	 * @return array [ string $html, array $events_for_schema ]
+	 * @return array [ string $html, array $events_for_schema, string $last_date ]
 	 */
-	private function render_cards( $query, $atts ) {
+	private function render_cards( $query, $atts, $last_date = '' ) {
 		$events_for_schema = array();
+		$group_date        = $last_date;
 
 		ob_start();
 		while ( $query->have_posts() ) :
 			$query->the_post();
 			$event = $this->get_event_data( get_the_ID() );
 			$events_for_schema[] = $event;
+
+			if ( $event['start_date'] && $event['start_date'] !== $group_date ) {
+				$group_date = $event['start_date'];
+				echo $this->render_date_separator( $group_date ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+
 			include NNR_EVENTS_PATH . 'templates/parts/event-card.php';
 		endwhile;
 		wp_reset_postdata();
 		$html = ob_get_clean();
 
-		return array( $html, $events_for_schema );
+		return array( $html, $events_for_schema, $group_date );
+	}
+
+	/**
+	 * "September 18" heading row shown above each new date group. Spans the
+	 * full grid width via CSS (grid-column: 1 / -1) so it works the same in
+	 * both grid and list layouts regardless of column count.
+	 */
+	private function render_date_separator( $date ) {
+		$label = self::format_date_separator_label( $date );
+		if ( '' === $label ) {
+			return '';
+		}
+		return '<div class="nnr-events__date-separator">'
+			. '<span class="nnr-events__date-separator-label">' . esc_html( $label ) . '</span>'
+			. '<span class="nnr-events__date-separator-line"></span>'
+			. '</div>';
+	}
+
+	/**
+	 * "September 18", or "September 18, 2027" when the date falls outside
+	 * the current year.
+	 */
+	public static function format_date_separator_label( $date ) {
+		$ts = strtotime( $date );
+		if ( ! $ts ) {
+			return '';
+		}
+		$format = ( date_i18n( 'Y', $ts ) === date_i18n( 'Y' ) ) ? 'F j' : 'F j, Y';
+		return date_i18n( $format, $ts );
 	}
 
 	private function wrapper_class( $atts ) {
