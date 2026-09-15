@@ -195,7 +195,9 @@
 		setValue( '_nnr_address', data ? data._nnr_address : '' );
 		setValue( '_nnr_price', data ? data._nnr_price : '' );
 		setValue( '_nnr_ticket_url', data ? data._nnr_ticket_url : '' );
-		setValue( '_nnr_button_text', data ? data._nnr_button_text : '' );
+		// Matches the classic meta box: pre-fill "Website" when there's no
+		// button text yet, rather than leaving it blank.
+		setValue( '_nnr_button_text', ( data && data._nnr_button_text ) ? data._nnr_button_text : 'Website' );
 
 		setChecked( '_nnr_multi_session', data ? data._nnr_multi_session : '0' );
 		setChecked( '_nnr_recurring_weekly', data ? data._nnr_recurring_weekly : '0' );
