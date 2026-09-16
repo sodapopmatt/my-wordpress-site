@@ -2,7 +2,7 @@
 /**
  * Plugin Name: NNR Events
  * Description: Manual event backend for News N' Roses. Provides an Event post type, event categories, and an [nnr_events] shortcode for embedding event listings on any page.
- * Version: 1.14.1
+ * Version: 1.15.0
  * Author: News N' Roses
  * Text Domain: nnr-events
  */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'NNR_EVENTS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'NNR_EVENTS_URL', plugin_dir_url( __FILE__ ) );
-define( 'NNR_EVENTS_VERSION', '1.14.1' );
+define( 'NNR_EVENTS_VERSION', '1.15.0' );
 
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-cpt.php';
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-taxonomy.php';
@@ -24,6 +24,7 @@ require_once NNR_EVENTS_PATH . 'includes/class-nnr-settings.php';
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-shortcode-page.php';
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-admin-list.php';
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-manage-events.php';
+require_once NNR_EVENTS_PATH . 'includes/class-nnr-cron.php';
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-ics.php';
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-duplicate.php';
 require_once NNR_EVENTS_PATH . 'includes/class-nnr-block.php';
@@ -37,6 +38,7 @@ function nnr_events_init() {
 	new NNR_Shortcode_Page();
 	new NNR_Admin_List();
 	new NNR_Manage_Events();
+	new NNR_Cron();
 	new NNR_ICS();
 	new NNR_Duplicate();
 	new NNR_Block();
@@ -56,6 +58,7 @@ function nnr_events_activate() {
 register_activation_hook( __FILE__, 'nnr_events_activate' );
 
 function nnr_events_deactivate() {
+	wp_clear_scheduled_hook( NNR_Cron::CRON_HOOK );
 	flush_rewrite_rules();
 }
 register_deactivation_hook( __FILE__, 'nnr_events_deactivate' );

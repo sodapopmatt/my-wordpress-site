@@ -433,6 +433,11 @@ class NNR_Meta_Box {
 		if ( $is_full_form ) {
 			$this->save_sessions( $post_id );
 		}
+
+		// Keeps the query-support field in sync with whatever start date/
+		// recurring flag just got saved (including a session-derived start
+		// date, or a Quick Edit date change) — see NNR_Query::compute_sort_date().
+		update_post_meta( $post_id, '_nnr_sort_date', NNR_Query::compute_sort_date( $post_id ) );
 	}
 
 	/**

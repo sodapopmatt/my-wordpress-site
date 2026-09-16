@@ -207,22 +207,22 @@ class NNR_Manage_Events {
 			case 'draft':
 				// Unlike Active/Expired, a draft legitimately may not have a
 				// start date yet (that's often exactly why it's still a
-				// draft) — ordering by _nnr_start_date must not require the
+				// draft) — ordering by _nnr_sort_date must not require the
 				// meta row to exist, or dateless drafts silently vanish from
 				// the list entirely (its count above would still include
 				// them, which is how this was caught).
 				$query_args['post_status'] = 'draft';
-				$query_args['meta_query']  = NNR_Query::orderable_start_date_meta_query();
-				$query_args['orderby']     = array( 'nnr_start_date_clause' => 'ASC' );
+				$query_args['meta_query']  = NNR_Query::orderable_sort_date_meta_query();
+				$query_args['orderby']     = array( 'nnr_sort_date_clause' => 'ASC' );
 				break;
 			case 'trash':
 				$query_args['post_status'] = 'trash';
-				$query_args['meta_query']  = NNR_Query::orderable_start_date_meta_query();
-				$query_args['orderby']     = array( 'nnr_start_date_clause' => 'ASC' );
+				$query_args['meta_query']  = NNR_Query::orderable_sort_date_meta_query();
+				$query_args['orderby']     = array( 'nnr_sort_date_clause' => 'ASC' );
 				break;
 			case 'expired':
 				$query_args['post_status'] = 'publish';
-				$query_args['meta_key']    = '_nnr_start_date';
+				$query_args['meta_key']    = '_nnr_sort_date';
 				$query_args['orderby']     = 'meta_value';
 				$query_args['order']       = 'ASC';
 				$query_args['meta_query']  = NNR_Admin_List::expired_meta_query();
@@ -230,7 +230,7 @@ class NNR_Manage_Events {
 			default:
 				$status                    = 'active';
 				$query_args['post_status'] = 'publish';
-				$query_args['meta_key']    = '_nnr_start_date';
+				$query_args['meta_key']    = '_nnr_sort_date';
 				$query_args['orderby']     = 'meta_value';
 				$query_args['order']       = 'ASC';
 				$query_args['meta_query']  = NNR_Query::upcoming_meta_query();

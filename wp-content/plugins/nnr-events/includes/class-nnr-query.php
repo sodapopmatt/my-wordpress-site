@@ -53,7 +53,7 @@ class NNR_Query {
 
 	/**
 	 * A meta_query that matches every post regardless of whether
-	 * _nnr_start_date is set (an EXISTS/NOT EXISTS pair under an OR is
+	 * _nnr_sort_date is set (an EXISTS/NOT EXISTS pair under an OR is
 	 * tautologically true) while still giving 'orderby' a named clause to
 	 * sort by. Plain top-level meta_key + orderby=meta_value instead
 	 * silently excludes any post without that meta row — fine for
@@ -62,18 +62,65 @@ class NNR_Query {
 	 * plausible before it's ever been given a date) is completely normal
 	 * and should still show up in the list.
 	 */
-	public static function orderable_start_date_meta_query() {
+	public static function orderable_sort_date_meta_query() {
 		return array(
-			'relation'              => 'OR',
-			'nnr_start_date_clause' => array(
-				'key'     => '_nnr_start_date',
+			'relation'             => 'OR',
+			'nnr_sort_date_clause' => array(
+				'key'     => '_nnr_sort_date',
 				'compare' => 'EXISTS',
 			),
 			array(
-				'key'     => '_nnr_start_date',
+				'key'     => '_nnr_sort_date',
 				'compare' => 'NOT EXISTS',
 			),
 		);
+	}
+
+	/**
+	 * Given any date that falls on the target weekday, returns the next
+	 * date (today included) that falls on that same weekday. Used to
+	 * project a recurring weekly event's fixed start_date anchor (which
+	 * only exists to record which weekday it repeats on — see
+	 * NNR_Shortcode::format_date_label()) forward to its next actual
+	 * occurrence, since that anchor itself never changes.
+	 */
+	public static function get_next_weekly_occurrence( $anchor_date ) {
+		$ts = strtotime( $anchor_date );
+		if ( ! $ts ) {
+			return $anchor_date;
+		}
+
+		$today_ts       = strtotime( current_time( 'Y-m-d' ) );
+		$anchor_weekday = (int) gmdate( 'N', $ts );
+		$today_weekday  = (int) gmdate( 'N', $today_ts );
+
+		$days_ahead = $anchor_weekday - $today_weekday;
+		if ( $days_ahead < 0 ) {
+			$days_ahead += 7;
+		}
+
+		return gmdate( 'Y-m-d', $today_ts + ( $days_ahead * DAY_IN_SECONDS ) );
+	}
+
+	/**
+	 * The canonical value to store in _nnr_sort_date for a given post: the
+	 * raw start date for a one-time event, or the next upcoming occurrence
+	 * for a recurring weekly one. This is the only thing queries should
+	 * sort/group by — _nnr_start_date itself stays frozen at whatever
+	 * anchor date it was first given.
+	 */
+	public static function compute_sort_date( $post_id ) {
+		$start_date = get_post_meta( $post_id, '_nnr_start_date', true );
+		if ( '' === $start_date ) {
+			return '';
+		}
+
+		$recurring = '1' === get_post_meta( $post_id, '_nnr_recurring_weekly', true );
+		if ( ! $recurring ) {
+			return $start_date;
+		}
+
+		return self::get_next_weekly_occurrence( $start_date );
 	}
 
 	/**
@@ -87,7 +134,7 @@ class NNR_Query {
 			'post_type'      => 'event',
 			'post_status'    => 'publish',
 			'posts_per_page' => 5,
-			'meta_key'       => '_nnr_start_date',
+			'meta_key'       => '_nnr_sort_date',
 			'orderby'        => 'meta_value',
 			'order'          => 'ASC',
 			'meta_query'     => self::upcoming_meta_query(),

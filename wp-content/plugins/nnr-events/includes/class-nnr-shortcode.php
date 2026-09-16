@@ -290,10 +290,15 @@ class NNR_Shortcode {
 
 	/**
 	 * Renders each post in $query through the event-card template, inserting
-	 * a date separator whenever the start date changes from the previous
-	 * card. $last_date carries the date already shown before this batch (the
-	 * tail end of a previous "Load More" page) so a group isn't split by a
+	 * a date separator whenever sort_date changes from the previous card.
+	 * $last_date carries the date already shown before this batch (the tail
+	 * end of a previous "Load More" page) so a group isn't split by a
 	 * duplicate separator across the page boundary.
+	 *
+	 * The query itself is already sorted by _nnr_sort_date (see
+	 * NNR_Query::get_upcoming_args()) — the maintained "next occurrence"
+	 * date for recurring events, kept in sync by NNR_Meta_Box::save() and
+	 * NNR_Cron — so no re-sorting is needed here.
 	 *
 	 * @return array [ string $html, array $events_for_schema, string $last_date ]
 	 */
@@ -307,8 +312,8 @@ class NNR_Shortcode {
 			$event = $this->get_event_data( get_the_ID() );
 			$events_for_schema[] = $event;
 
-			if ( $event['start_date'] && $event['start_date'] !== $group_date ) {
-				$group_date = $event['start_date'];
+			if ( $event['sort_date'] && $event['sort_date'] !== $group_date ) {
+				$group_date = $event['sort_date'];
 				echo $this->render_date_separator( $group_date ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 			}
 
@@ -375,6 +380,7 @@ class NNR_Shortcode {
 			'description'   => self::get_description( $post_id ),
 			'image'         => self::get_image_url( $post_id ),
 			'start_date'    => get_post_meta( $post_id, '_nnr_start_date', true ),
+			'sort_date'     => get_post_meta( $post_id, '_nnr_sort_date', true ),
 			'start_time'    => get_post_meta( $post_id, '_nnr_start_time', true ),
 			'end_date'      => get_post_meta( $post_id, '_nnr_end_date', true ),
 			'end_time'      => get_post_meta( $post_id, '_nnr_end_time', true ),
@@ -470,6 +476,50 @@ class NNR_Shortcode {
 	}
 
 	/**
+	 * True while a recurring weekly event's live window is happening right
+	 * now: today is its next occurrence (sort_date, kept current by
+	 * NNR_Query::compute_sort_date()/NNR_Cron) and the current time falls
+	 * between its start_time and end_time. Most recurring events here don't
+	 * have an end_time set, so one is assumed as a 3-hour window from the
+	 * start — long enough for a typical trivia/karaoke night without
+	 * staying "Ongoing" all evening on a night with no event at all.
+	 */
+	public static function is_recurring_live( $event ) {
+		if ( ! $event['recurring'] || ! $event['start_time'] || '' === $event['sort_date'] ) {
+			return false;
+		}
+
+		if ( $event['sort_date'] !== current_time( 'Y-m-d' ) ) {
+			return false;
+		}
+
+		$now = current_time( 'H:i' );
+		if ( $now < $event['start_time'] ) {
+			return false;
+		}
+
+		$end_time = $event['end_time'] ? $event['end_time'] : self::add_hours_to_time( $event['start_time'], 3 );
+
+		// A window that crosses midnight (end_time earlier than
+		// start_time) is still live for the rest of the night, since we
+		// already confirmed above that now is on/after start_time.
+		return $end_time < $event['start_time'] || $now <= $end_time;
+	}
+
+	/**
+	 * Adds whole hours to an "H:i" time string, wrapping past midnight.
+	 * Deliberately plain string/integer arithmetic rather than
+	 * strtotime()/timestamp math, which would need to reconcile the
+	 * server's default timezone against the site's configured one.
+	 */
+	private static function add_hours_to_time( $time, $hours ) {
+		$parts = explode( ':', $time );
+		$hour  = ( (int) $parts[0] + $hours ) % 24;
+		$mins  = isset( $parts[1] ) ? $parts[1] : '00';
+		return sprintf( '%02d:%s', $hour, $mins );
+	}
+
+	/**
 	 * One line per day for multi-session events, e.g. "Fri, Sep 11 · 6:00 PM
 	 * – 9:00 PM". Stacked (one per session) rather than joined into a single
 	 * line, since that reads more clearly and avoids the wrapping problems
@@ -511,7 +561,10 @@ class NNR_Shortcode {
 				continue;
 			}
 
-			$start = $event['start_date'] . ( $event['start_time'] ? 'T' . $event['start_time'] . ':00' : '' );
+			// For a recurring event, start_date is just a fixed weekday
+			// anchor — schema.org should advertise the next actual
+			// occurrence (sort_date), not that frozen date.
+			$start = $event['sort_date'] . ( $event['start_time'] ? 'T' . $event['start_time'] . ':00' : '' );
 
 			$node = array(
 				'@type'     => 'Event',

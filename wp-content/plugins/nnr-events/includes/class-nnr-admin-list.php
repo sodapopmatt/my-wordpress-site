@@ -379,11 +379,11 @@ class NNR_Admin_List {
 			// meta_key/orderby=meta_value alone would silently exclude it,
 			// since that shortcut requires the meta row to exist.
 			if ( in_array( $requested_status, array( 'draft', 'trash' ), true ) ) {
-				$query->set( 'meta_query', NNR_Query::orderable_start_date_meta_query() );
-				$query->set( 'orderby', array( 'nnr_start_date_clause' => 'ASC' ) );
+				$query->set( 'meta_query', NNR_Query::orderable_sort_date_meta_query() );
+				$query->set( 'orderby', array( 'nnr_sort_date_clause' => 'ASC' ) );
 				return;
 			}
-			$query->set( 'meta_key', '_nnr_start_date' );
+			$query->set( 'meta_key', '_nnr_sort_date' );
 			$query->set( 'orderby', 'meta_value' );
 			$query->set( 'order', 'ASC' );
 			return;
@@ -393,7 +393,7 @@ class NNR_Admin_List {
 			return;
 		}
 
-		$query->set( 'meta_key', '_nnr_start_date' );
+		$query->set( 'meta_key', '_nnr_sort_date' );
 		$query->set( 'orderby', 'meta_value' );
 	}
 

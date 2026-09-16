@@ -22,6 +22,7 @@ class NNR_Duplicate {
 		'_nnr_start_time',
 		'_nnr_end_date',
 		'_nnr_end_time',
+		'_nnr_sort_date',
 	);
 
 	public function __construct() {

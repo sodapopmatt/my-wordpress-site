@@ -9,6 +9,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 $date_label  = NNR_Shortcode::format_date_label( $event );
 $range_note  = NNR_Shortcode::format_date_range_note( $event );
 $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
+
+if ( $event['recurring'] ) {
+	$badge_text = NNR_Shortcode::is_recurring_live( $event ) ? __( 'Ongoing', 'nnr-events' ) : __( 'Weekly', 'nnr-events' );
+} elseif ( NNR_Shortcode::is_ongoing( $event ) ) {
+	$badge_text = __( 'Ongoing', 'nnr-events' );
+} else {
+	$badge_text = '';
+}
 ?>
 <div class="nnr-event-card">
 	<?php if ( $show_image ) : ?>
@@ -68,10 +76,8 @@ $show_image  = ( 'hide' !== $atts['image'] ) && $event['image'];
 					</span>
 				<?php endif; ?>
 			</span>
-			<?php if ( $event['recurring'] ) : ?>
-				<span class="nnr-event-card__badge"><?php esc_html_e( 'Weekly', 'nnr-events' ); ?></span>
-			<?php elseif ( NNR_Shortcode::is_ongoing( $event ) ) : ?>
-				<span class="nnr-event-card__badge"><?php esc_html_e( 'Ongoing', 'nnr-events' ); ?></span>
+			<?php if ( $badge_text ) : ?>
+				<span class="nnr-event-card__badge"><?php echo esc_html( $badge_text ); ?></span>
 			<?php endif; ?>
 		</div>
 
