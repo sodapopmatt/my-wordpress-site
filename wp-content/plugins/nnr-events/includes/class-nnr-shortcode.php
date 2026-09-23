@@ -598,10 +598,26 @@ class NNR_Shortcode {
 			}
 
 			if ( $event['venue'] || $event['address'] ) {
-				$node['location'] = array(
-					'@type'   => 'Place',
-					'name'    => $event['venue'] ? $event['venue'] : $event['address'],
-					'address' => $event['address'],
+				$location = array(
+					'@type' => 'Place',
+					'name'  => $event['venue'] ? $event['venue'] : $event['address'],
+				);
+				// Only include address when we actually have one — an empty
+				// string here reads as invalid/missing to structured data
+				// validators, which is worse than the field being absent.
+				if ( $event['address'] ) {
+					$location['address'] = $event['address'];
+				}
+				$node['location'] = $location;
+			}
+
+			// The venue is usually who's actually running a listing like
+			// this (e.g. a bar hosting its own trivia night), so it doubles
+			// as organizer rather than leaving the field unset.
+			if ( $event['venue'] ) {
+				$node['organizer'] = array(
+					'@type' => 'Organization',
+					'name'  => $event['venue'],
 				);
 			}
 
@@ -613,7 +629,7 @@ class NNR_Shortcode {
 				$node['description'] = wp_strip_all_tags( $event['description'] );
 			}
 
-			$offer = $this->price_to_offer( $event['price'], $event['ticket_url'] );
+			$offer = $this->price_to_offer( $event['price'], $event['ticket_url'], $event['id'] );
 			if ( $offer ) {
 				$node['offers'] = $offer;
 			}
@@ -637,28 +653,42 @@ class NNR_Shortcode {
 	 * Only emit an Offer when the price string is unambiguous ("Free" or a clean "$N").
 	 * Ranged/mixed strings like "$15-20" are left out rather than guessing.
 	 */
-	private function price_to_offer( $price, $url ) {
+	private function price_to_offer( $price, $url, $post_id ) {
 		$price = trim( (string) $price );
 
 		if ( '' === $price ) {
 			return null;
 		}
 
+		// availability: we don't track sold-out status, so InStock is the
+		// standard neutral default. validFrom: when the listing (and its
+		// ticket link) actually went live, i.e. the post's publish date —
+		// real data rather than a guess.
+		$common = array(
+			'url'          => $url,
+			'availability' => 'https://schema.org/InStock',
+			'validFrom'    => get_post_time( 'c', true, $post_id ),
+		);
+
 		if ( 0 === strcasecmp( $price, 'free' ) ) {
-			return array(
-				'@type'         => 'Offer',
-				'price'         => '0',
-				'priceCurrency' => 'USD',
-				'url'           => $url,
+			return array_merge(
+				array(
+					'@type'         => 'Offer',
+					'price'         => '0',
+					'priceCurrency' => 'USD',
+				),
+				$common
 			);
 		}
 
 		if ( preg_match( '/^\$(\d+(?:\.\d{2})?)$/', $price, $m ) ) {
-			return array(
-				'@type'         => 'Offer',
-				'price'         => $m[1],
-				'priceCurrency' => 'USD',
-				'url'           => $url,
+			return array_merge(
+				array(
+					'@type'         => 'Offer',
+					'price'         => $m[1],
+					'priceCurrency' => 'USD',
+				),
+				$common
 			);
 		}
 
