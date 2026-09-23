@@ -11,12 +11,14 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class NNR_Cron {
 
-	const CRON_HOOK        = 'nnr_events_refresh_recurring_dates';
-	const MIGRATION_OPTION = 'nnr_events_sort_date_backfilled_v1';
+	const CRON_HOOK          = 'nnr_events_refresh_recurring_dates';
+	const MIGRATION_OPTION   = 'nnr_events_sort_date_backfilled_v1';
+	const LAST_REFRESH_OPTION = 'nnr_events_recurring_last_refresh_date';
 
 	public function __construct() {
 		add_action( 'init', array( $this, 'schedule' ) );
 		add_action( 'init', array( $this, 'maybe_run_backfill' ) );
+		add_action( 'init', array( $this, 'maybe_refresh_recurring_dates' ) );
 		add_action( self::CRON_HOOK, array( $this, 'refresh_recurring_dates' ) );
 	}
 
@@ -24,6 +26,24 @@ class NNR_Cron {
 		if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
 			wp_schedule_event( time(), 'daily', self::CRON_HOOK );
 		}
+	}
+
+	/**
+	 * Real WP-Cron only runs via a background HTTP loopback request that a
+	 * page load triggers — many hosts block or throttle that (security
+	 * plugins, firewalls), so schedule() alone isn't reliable in practice.
+	 * This guarantees the same refresh happens on the first page load of
+	 * each new day regardless, using a cheap date-stamp option instead of
+	 * depending on that request actually succeeding.
+	 */
+	public function maybe_refresh_recurring_dates() {
+		$today = current_time( 'Y-m-d' );
+		if ( get_option( self::LAST_REFRESH_OPTION ) === $today ) {
+			return;
+		}
+
+		$this->refresh_recurring_dates();
+		update_option( self::LAST_REFRESH_OPTION, $today );
 	}
 
 	/**
