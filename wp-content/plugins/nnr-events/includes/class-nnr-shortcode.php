@@ -460,8 +460,12 @@ class NNR_Shortcode {
 	}
 
 	/**
-	 * True for multi-day (non-recurring) events where today falls between
-	 * the start and end date, inclusive.
+	 * True for multi-day (non-recurring) events where the current moment
+	 * falls between the start and end date/time, inclusive. On the first
+	 * day this checks start_time (if set) so the badge doesn't appear
+	 * hours before the event actually begins; on the last day it checks
+	 * end_time (if set) so it doesn't linger after the event's already
+	 * wrapped up. Full days strictly in between are always ongoing.
 	 */
 	public static function is_ongoing( $event ) {
 		if ( $event['recurring'] || ! $event['start_date'] || ! $event['end_date'] ) {
@@ -472,7 +476,21 @@ class NNR_Shortcode {
 		}
 
 		$today = current_time( 'Y-m-d' );
-		return $event['start_date'] <= $today && $today <= $event['end_date'];
+		if ( $today < $event['start_date'] || $today > $event['end_date'] ) {
+			return false;
+		}
+
+		$now = current_time( 'H:i' );
+
+		if ( $today === $event['start_date'] && $event['start_time'] && $now < $event['start_time'] ) {
+			return false;
+		}
+
+		if ( $today === $event['end_date'] && $event['end_time'] && $now > $event['end_time'] ) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
