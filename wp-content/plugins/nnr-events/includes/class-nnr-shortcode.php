@@ -8,6 +8,14 @@ class NNR_Shortcode {
 	const AJAX_ACTION = 'nnr_load_more_events';
 	const NONCE_ACTION = 'nnr_load_more';
 
+	/**
+	 * Max seconds a full-page cache may serve a page with a listing on it.
+	 * Which events show, their "Ongoing" badges and the load-more nonce
+	 * all depend on the current time, so a page cached for the default
+	 * week would show ended events and stale badges.
+	 */
+	const PAGE_CACHE_TTL = 900;
+
 	public function __construct() {
 		add_shortcode( 'nnr_events', array( $this, 'render' ) );
 		add_action( 'wp_ajax_' . self::AJAX_ACTION, array( $this, 'ajax_load_more' ) );
@@ -112,6 +120,9 @@ class NNR_Shortcode {
 	}
 
 	public function render( $atts ) {
+		// No-op unless LiteSpeed Cache is active.
+		do_action( 'litespeed_control_set_ttl', self::PAGE_CACHE_TTL );
+
 		$atts = $this->normalize_atts( $atts );
 
 		// The default_category (if set) determines what's shown/queried on
