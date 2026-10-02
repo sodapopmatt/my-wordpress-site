@@ -1,32 +1,4 @@
 ( function () {
-	// Scroll reveal: fade/slide event cards in as they enter the viewport.
-	var revealObserver = null;
-	if ( 'IntersectionObserver' in window && ! window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) {
-		revealObserver = new IntersectionObserver(
-			function ( entries ) {
-				entries.forEach( function ( entry ) {
-					if ( entry.isIntersecting ) {
-						entry.target.classList.add( 'is-visible' );
-						revealObserver.unobserve( entry.target );
-					}
-				} );
-			},
-			{ rootMargin: '0px 0px -10% 0px', threshold: 0.1 }
-		);
-	}
-
-	function observeReveal( root ) {
-		if ( ! revealObserver ) {
-			return;
-		}
-		( root || document ).querySelectorAll( '.nnr-event-card' ).forEach( function ( card ) {
-			card.classList.add( 'nnr-events-reveal' );
-			revealObserver.observe( card );
-		} );
-	}
-
-	observeReveal();
-
 	// "Read more": shows the button only when the clamped excerpt actually overflows.
 	function checkExcerptOverflow( root ) {
 		( root || document ).querySelectorAll( '.nnr-event-card__excerpt' ).forEach( function ( excerpt ) {
@@ -102,7 +74,6 @@
 			.then( function ( json ) {
 				if ( json.data.html ) {
 					grid.insertAdjacentHTML( 'beforeend', json.data.html );
-					observeReveal( grid );
 					checkExcerptOverflow( grid );
 				}
 
@@ -167,7 +138,6 @@
 			.then( function ( json ) {
 				grid.classList.remove( 'is-loading' );
 				grid.innerHTML = json.data.html || '';
-				observeReveal( grid );
 				checkExcerptOverflow( grid );
 
 				loadMoreBtn.dataset.category = category;
