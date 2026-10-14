@@ -46,9 +46,10 @@
 	}
 
 	/**
-	 * Sets a time input with a 15-minute step (the browser's picker offers
-	 * :00/:15/:30/:45). The step is left off for a saved time that isn't on
-	 * that grid, since the browser would otherwise refuse to submit the form.
+	 * Sets a time input with a 15-minute step (arrow keys move in 15-minute
+	 * jumps; the picker below handles clicking). The step is left off for a
+	 * saved time that isn't on that grid, since the browser would otherwise
+	 * refuse to submit the form.
 	 * Mirrors NNR_Meta_Box::time_step_attr().
 	 */
 	function setTime( input, value ) {
@@ -140,6 +141,174 @@
 	}
 
 	window.NNREventDays = { set: set };
+
+	/**
+	 * Time picker popup for the day list's time inputs. Chrome's own picker
+	 * lists every minute regardless of the input's step, so its button is
+	 * hidden (see admin-event-days.css) and this one — same hour / minute /
+	 * AM-PM columns, but minutes limited to :00/:15/:30/:45 — opens on click
+	 * instead. Focus stays in the native input, so typing still works.
+	 */
+	( function () {
+		var SELECTOR = '.nnr-days input[type="time"]';
+		var MINUTES  = [ '00', '15', '30', '45' ];
+		var HOURS    = [ 12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 ];
+
+		var popup = null;
+		var input = null;
+
+		function cell( part, value, label ) {
+			return '<button type="button" class="nnr-tp__cell" data-part="' + part + '" data-value="' + value + '">' + label + '</button>';
+		}
+
+		function build() {
+			popup = document.createElement( 'div' );
+			popup.className = 'nnr-tp';
+			popup.hidden    = true;
+			popup.innerHTML =
+				'<div class="nnr-tp__cols">' +
+					'<div class="nnr-tp__col">' + HOURS.map( function ( h ) {
+						return cell( 'hour', h, String( h ).padStart( 2, '0' ) );
+					} ).join( '' ) + '</div>' +
+					'<div class="nnr-tp__col">' + MINUTES.map( function ( m ) {
+						return cell( 'minute', m, m );
+					} ).join( '' ) + '</div>' +
+					'<div class="nnr-tp__col">' + cell( 'ampm', 'AM', 'AM' ) + cell( 'ampm', 'PM', 'PM' ) + '</div>' +
+				'</div>' +
+				'<button type="button" class="button-link nnr-tp__clear">Clear</button>';
+
+			// Keep focus in the input while clicking around the popup, so
+			// blur only fires when the user really leaves the field.
+			popup.addEventListener( 'mousedown', function ( e ) {
+				e.preventDefault();
+			} );
+			popup.addEventListener( 'click', function ( e ) {
+				if ( e.target.closest( '.nnr-tp__clear' ) ) {
+					apply( '' );
+					close();
+					return;
+				}
+				var btn = e.target.closest( '.nnr-tp__cell' );
+				if ( btn ) {
+					pick( btn.dataset.part, btn.dataset.value );
+				}
+			} );
+			document.body.appendChild( popup );
+		}
+
+		/** @return {{hour: number, minute: string, ampm: string}|null} */
+		function parse( value ) {
+			var match = /^(\d{2}):(\d{2})/.exec( value || '' );
+			if ( ! match ) {
+				return null;
+			}
+			var h24 = parseInt( match[ 1 ], 10 );
+			return { hour: ( h24 % 12 ) || 12, minute: match[ 2 ], ampm: h24 < 12 ? 'AM' : 'PM' };
+		}
+
+		function format( parts ) {
+			var h24 = ( parts.hour % 12 ) + ( 'PM' === parts.ampm ? 12 : 0 );
+			return String( h24 ).padStart( 2, '0' ) + ':' + parts.minute;
+		}
+
+		function apply( value ) {
+			setTime( input, value );
+			input.dispatchEvent( new Event( 'input', { bubbles: true } ) );
+			input.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+			highlight();
+		}
+
+		function pick( part, value ) {
+			// Starting from an empty input, fill the other columns with
+			// 12:00 PM so a single click already gives a valid time.
+			var parts = parse( input.value ) || { hour: 12, minute: '00', ampm: 'PM' };
+			parts[ part ] = 'hour' === part ? parseInt( value, 10 ) : value;
+			apply( format( parts ) );
+		}
+
+		function highlight() {
+			var parts = parse( input.value );
+			popup.querySelectorAll( '.nnr-tp__cell' ).forEach( function ( btn ) {
+				var on = !! parts && String( parts[ btn.dataset.part ] ) === btn.dataset.value;
+				btn.classList.toggle( 'is-selected', on );
+				btn.setAttribute( 'aria-pressed', on ? 'true' : 'false' );
+			} );
+		}
+
+		function position() {
+			var rect   = input.getBoundingClientRect();
+			var height = popup.offsetHeight;
+			popup.style.left = Math.max( 4, rect.left ) + 'px';
+			// Open below unless it doesn't fit there and there's more room above.
+			var spaceBelow = window.innerHeight - rect.bottom;
+			popup.style.top = ( height + 4 > spaceBelow && rect.top > spaceBelow
+				? Math.max( 4, rect.top - height - 2 )
+				: rect.bottom + 2 ) + 'px';
+		}
+
+		function open( target ) {
+			if ( ! popup ) {
+				build();
+			}
+			input        = target;
+			popup.hidden = false;
+			highlight();
+			position();
+			var selected = popup.querySelector( '.nnr-tp__cell[data-part="hour"].is-selected' );
+			var hourCol  = popup.querySelector( '.nnr-tp__col' );
+			hourCol.scrollTop = selected ? selected.offsetTop - hourCol.offsetTop : 0;
+		}
+
+		function close() {
+			if ( popup ) {
+				popup.hidden = true;
+			}
+			input = null;
+		}
+
+		document.addEventListener( 'click', function ( e ) {
+			var target = e.target.closest && e.target.closest( SELECTOR );
+			if ( target && target !== input ) {
+				open( target );
+			}
+		} );
+
+		document.addEventListener( 'focusout', function ( e ) {
+			if ( input && e.target === input ) {
+				close();
+			}
+		} );
+
+		document.addEventListener( 'keydown', function ( e ) {
+			var target = e.target.closest && e.target.closest( SELECTOR );
+			if ( ! target ) {
+				return;
+			}
+			// Alt+Down / F4 would open Chrome's own picker — open ours instead.
+			if ( ( e.altKey && ( 'ArrowDown' === e.key || 'ArrowUp' === e.key ) ) || 'F4' === e.key ) {
+				e.preventDefault();
+				if ( input === target ) {
+					close();
+				} else {
+					open( target );
+				}
+			} else if ( input && ( 'Escape' === e.key || 'Enter' === e.key ) ) {
+				// Stop here so Escape doesn't also close Quick Manage's panel.
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				close();
+			}
+		} );
+
+		// A fixed-position popup would drift away from its input on scroll
+		// (the page, or Quick Manage's scrolling panel) — just close it.
+		window.addEventListener( 'scroll', function ( e ) {
+			if ( input && ! ( popup && popup.contains( e.target ) ) ) {
+				close();
+			}
+		}, true );
+		window.addEventListener( 'resize', close );
+	} )();
 
 	function initAll() {
 		document.querySelectorAll( '.nnr-days' ).forEach( init );

@@ -149,10 +149,11 @@ class NNR_Meta_Box {
 	}
 
 	/**
-	 * 15-minute step for a time input (the browser's picker offers :00/:15/
-	 * :30/:45). Left off when a saved time isn't on that grid, since the
-	 * browser would then refuse to submit the form until it's changed.
-	 * Mirrored by applyStep() in assets/js/admin-event-days.js.
+	 * 15-minute step for a time input (arrow keys move in 15-minute jumps;
+	 * the custom picker in assets/js/admin-event-days.js handles clicking).
+	 * Left off when a saved time isn't on that grid, since the browser would
+	 * then refuse to submit the form until it's changed. Mirrored by
+	 * setTime() in assets/js/admin-event-days.js.
 	 */
 	private static function time_step_attr( $value ) {
 		return ( '' === $value || 0 === (int) substr( $value, 3, 2 ) % 15 ) ? 'step="900"' : '';
