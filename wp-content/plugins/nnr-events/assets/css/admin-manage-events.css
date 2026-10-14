@@ -74,14 +74,6 @@
 	width: 180px;
 }
 
-#nnr_qm_sessions_table {
-	margin-bottom: 8px;
-}
-
-#nnr_qm_sessions_table td {
-	padding: 2px 6px 2px 0;
-}
-
 #nnr-event-spinner.is-active {
 	visibility: visible;
 	float: none;

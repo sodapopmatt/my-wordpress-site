@@ -56,101 +56,7 @@
 		}
 	}
 
-	// Sessions repeater (mirrors the inline script in class-nnr-meta-box.php).
-	var multiToggle   = document.getElementById( 'nnr_qm_multi_session' );
-	var singleRows    = [
-		document.getElementById( 'nnr_qm_single_dates_row' ),
-		document.getElementById( 'nnr_qm_single_end_dates_row' ),
-	];
-	var sessionsRow   = document.getElementById( 'nnr_qm_sessions_row' );
-	var sessionsBody  = document.querySelector( '#nnr_qm_sessions_table tbody' );
-	var sessionAddBtn = document.getElementById( 'nnr_qm_session_add' );
-	var startDateInput = document.getElementById( 'nnr_qm_start_date' );
-
-	function applyMultiSessionToggle() {
-		var on = multiToggle.checked;
-		singleRows.forEach( function ( row ) {
-			if ( row ) {
-				row.hidden = on;
-			}
-		} );
-		if ( sessionsRow ) {
-			sessionsRow.hidden = ! on;
-		}
-		if ( startDateInput ) {
-			startDateInput.required = ! on;
-		}
-	}
-
-	function nextSessionIndex() {
-		var rows = sessionsBody.querySelectorAll( '.nnr-session-row' );
-		var max  = -1;
-		rows.forEach( function ( row ) {
-			var input = row.querySelector( 'input[name*="[date]"]' );
-			var match = input && input.name.match( /\[(\d+)\]/ );
-			if ( match ) {
-				max = Math.max( max, parseInt( match[ 1 ], 10 ) );
-			}
-		} );
-		return max + 1;
-	}
-
-	function addSessionRow( date, startTime, endTime ) {
-		var i  = nextSessionIndex();
-		var tr = document.createElement( 'tr' );
-		tr.className = 'nnr-session-row';
-		tr.innerHTML =
-			'<td><input type="date" name="_nnr_sessions[' + i + '][date]" /></td>' +
-			'<td><input type="time" name="_nnr_sessions[' + i + '][start_time]" /></td>' +
-			'<td><input type="time" name="_nnr_sessions[' + i + '][end_time]" /></td>' +
-			'<td><button type="button" class="button nnr-session-remove">' + ( window.NNRManageEvents.removeText || 'Remove' ) + '</button></td>';
-		sessionsBody.appendChild( tr );
-		if ( date ) {
-			tr.querySelector( 'input[name*="[date]"]' ).value = date;
-		}
-		if ( startTime ) {
-			tr.querySelector( 'input[name*="[start_time]"]' ).value = startTime;
-		}
-		if ( endTime ) {
-			tr.querySelector( 'input[name*="[end_time]"]' ).value = endTime;
-		}
-	}
-
-	function resetSessions( sessions ) {
-		sessionsBody.querySelectorAll( '.nnr-session-row' ).forEach( function ( row ) {
-			row.remove();
-		} );
-		if ( sessions && sessions.length ) {
-			sessions.forEach( function ( session ) {
-				addSessionRow( session.date, session.start_time, session.end_time );
-			} );
-		} else {
-			addSessionRow( '', '', '' );
-		}
-	}
-
-	if ( multiToggle && sessionsBody && sessionAddBtn ) {
-		multiToggle.addEventListener( 'change', applyMultiSessionToggle );
-
-		sessionAddBtn.addEventListener( 'click', function () {
-			addSessionRow( '', '', '' );
-		} );
-
-		sessionsBody.addEventListener( 'click', function ( e ) {
-			var btn = e.target.closest( '.nnr-session-remove' );
-			if ( ! btn ) {
-				return;
-			}
-			var rows = sessionsBody.querySelectorAll( '.nnr-session-row' );
-			if ( rows.length <= 1 ) {
-				btn.closest( '.nnr-session-row' ).querySelectorAll( 'input' ).forEach( function ( input ) {
-					input.value = '';
-				} );
-				return;
-			}
-			btn.closest( '.nnr-session-row' ).remove();
-		} );
-	}
+	var daysContainer = document.querySelector( '#nnr_qm_days .nnr-days' );
 
 	function setChecked( name, value ) {
 		var el = form.querySelector( '[name="' + name + '"]' );
@@ -186,10 +92,9 @@
 		document.getElementById( 'nnr_qm_post_id' ).value = isEdit ? data.id : 0;
 
 		setValue( 'post_title', data ? data.title : '' );
-		setValue( '_nnr_start_date', data ? data._nnr_start_date : '' );
-		setValue( '_nnr_start_time', data ? data._nnr_start_time : '' );
-		setValue( '_nnr_end_date', data ? data._nnr_end_date : '' );
-		setValue( '_nnr_end_time', data ? data._nnr_end_time : '' );
+		if ( daysContainer && window.NNREventDays ) {
+			window.NNREventDays.set( daysContainer, data ? data._nnr_days : [], data ? data._nnr_runs_through : '' );
+		}
 		setValue( '_nnr_image_url', data ? data._nnr_image_url : '' );
 		setValue( '_nnr_venue', data ? data._nnr_venue : '' );
 		setValue( '_nnr_address', data ? data._nnr_address : '' );
@@ -199,11 +104,7 @@
 		// button text yet, rather than leaving it blank.
 		setValue( '_nnr_button_text', ( data && data._nnr_button_text ) ? data._nnr_button_text : 'Website' );
 
-		setChecked( '_nnr_multi_session', data ? data._nnr_multi_session : '0' );
 		setChecked( '_nnr_recurring_weekly', data ? data._nnr_recurring_weekly : '0' );
-		applyMultiSessionToggle();
-
-		resetSessions( data ? data._nnr_sessions : [] );
 		setCategories( data ? data.categories : [] );
 
 		var statusRadio = form.querySelector( '[name="post_status"][value="' + ( data && 'publish' === data.post_status ? 'publish' : 'draft' ) + '"]' );

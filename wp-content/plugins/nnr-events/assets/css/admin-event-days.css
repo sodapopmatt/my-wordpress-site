@@ -1,0 +1,27 @@
+.nnr-days__table {
+	border-collapse: collapse;
+	margin-bottom: 8px;
+}
+
+.nnr-days__table th {
+	padding: 0 8px 4px 0;
+	font-weight: 600;
+	text-align: left;
+}
+
+.nnr-days__table td {
+	padding: 0 8px 6px 0;
+	vertical-align: middle;
+}
+
+.nnr-days__remove {
+	color: #b32d2e;
+}
+
+.nnr-days__through {
+	margin-top: 12px;
+}
+
+.nnr-days__through[hidden] {
+	display: none;
+}

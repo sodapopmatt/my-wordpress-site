@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * AJAX action). As long as this panel's form uses the same field names and
  * includes NNR_Meta_Box's own nonce field, calling wp_insert_post()/
  * wp_update_post() below fires that same save logic — including the
- * sessions repeater handling — with no duplicated sanitization code.
+ * day list handling — with no duplicated sanitization code.
  */
 class NNR_Manage_Events {
 
@@ -56,10 +56,12 @@ class NNR_Manage_Events {
 			NNR_EVENTS_VERSION
 		);
 
+		NNR_Meta_Box::enqueue_days_assets();
+
 		wp_enqueue_script(
 			'nnr-admin-manage-events',
 			NNR_EVENTS_URL . 'assets/js/admin-manage-events.js',
-			array( 'jquery', 'editor' ),
+			array( 'jquery', 'editor', 'nnr-admin-event-days' ),
 			NNR_EVENTS_VERSION,
 			true
 		);
@@ -80,8 +82,9 @@ class NNR_Manage_Events {
 			$data[ $key ] = get_post_meta( $post_id, $key, true );
 		}
 
-		$sessions              = get_post_meta( $post_id, '_nnr_sessions', true );
-		$data['_nnr_sessions'] = is_array( $sessions ) ? array_values( $sessions ) : array();
+		$days = NNR_Meta_Box::get_days( $post_id );
+		$data['_nnr_days']         = $days['days'];
+		$data['_nnr_runs_through'] = $days['runs_through'];
 
 		$terms              = wp_get_object_terms( $post_id, NNR_Taxonomy::TAXONOMY, array( 'fields' => 'ids' ) );
 		$data['categories'] = is_wp_error( $terms ) ? array() : array_map( 'intval', $terms );
@@ -280,7 +283,6 @@ class NNR_Manage_Events {
 				'confirmDeleteForever' => __( 'Permanently delete this event? This cannot be undone.', 'nnr-events' ),
 				'addTitle'            => __( 'Add New Event', 'nnr-events' ),
 				'editTitle'           => __( 'Edit Event', 'nnr-events' ),
-				'removeText'          => __( 'Remove', 'nnr-events' ),
 				'noEventsText'        => __( 'No events found.', 'nnr-events' ),
 				'events'              => $events_data,
 			)
@@ -387,46 +389,9 @@ class NNR_Manage_Events {
 							<th><label for="nnr_qm_title"><?php esc_html_e( 'Title', 'nnr-events' ); ?></label></th>
 							<td><input type="text" id="nnr_qm_title" name="post_title" class="regular-text" required /></td>
 						</tr>
-						<tr id="nnr_qm_single_dates_row">
-							<th><label for="nnr_qm_start_date"><?php esc_html_e( 'Start Date', 'nnr-events' ); ?></label></th>
-							<td>
-								<input type="date" id="nnr_qm_start_date" name="_nnr_start_date" required />
-								<input type="time" id="nnr_qm_start_time" name="_nnr_start_time" style="margin-left:8px;" />
-							</td>
-						</tr>
-						<tr id="nnr_qm_single_end_dates_row">
-							<th><label for="nnr_qm_end_date"><?php esc_html_e( 'End Date', 'nnr-events' ); ?></label></th>
-							<td>
-								<input type="date" id="nnr_qm_end_date" name="_nnr_end_date" />
-								<input type="time" id="nnr_qm_end_time" name="_nnr_end_time" style="margin-left:8px;" />
-								<p class="description"><?php esc_html_e( 'Optional.', 'nnr-events' ); ?></p>
-							</td>
-						</tr>
 						<tr>
-							<th><label for="nnr_qm_multi_session"><?php esc_html_e( 'Different Times Each Day', 'nnr-events' ); ?></label></th>
-							<td>
-								<label>
-									<input type="checkbox" id="nnr_qm_multi_session" name="_nnr_multi_session" value="1" />
-									<?php esc_html_e( 'This event has a different start/end time on each day', 'nnr-events' ); ?>
-								</label>
-							</td>
-						</tr>
-						<tr id="nnr_qm_sessions_row" hidden>
-							<th><?php esc_html_e( 'Day Times', 'nnr-events' ); ?></th>
-							<td>
-								<table id="nnr_qm_sessions_table">
-									<tbody>
-										<tr class="nnr-session-row">
-											<td><input type="date" name="_nnr_sessions[0][date]" /></td>
-											<td><input type="time" name="_nnr_sessions[0][start_time]" /></td>
-											<td><input type="time" name="_nnr_sessions[0][end_time]" /></td>
-											<td><button type="button" class="button nnr-session-remove"><?php esc_html_e( 'Remove', 'nnr-events' ); ?></button></td>
-										</tr>
-									</tbody>
-								</table>
-								<button type="button" class="button" id="nnr_qm_session_add"><?php esc_html_e( 'Add another day', 'nnr-events' ); ?></button>
-								<p class="description"><?php esc_html_e( 'Start time is required per day; end time is optional.', 'nnr-events' ); ?></p>
-							</td>
+							<th><?php esc_html_e( 'Dates', 'nnr-events' ); ?></th>
+							<td id="nnr_qm_days"><?php NNR_Meta_Box::render_days_field( array(), '' ); ?></td>
 						</tr>
 						<tr>
 							<th><label for="nnr_qm_recurring_weekly"><?php esc_html_e( 'Recurring Weekly', 'nnr-events' ); ?></label></th>
