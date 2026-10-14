@@ -37,12 +37,28 @@
 		tr.querySelector( '.nnr-days__remove' ).textContent = container.dataset.removeText || 'Remove';
 
 		day = day || {};
-		tr.querySelector( 'input[name*="[date]"]' ).value       = day.date || '';
-		tr.querySelector( 'input[name*="[start_time]"]' ).value = day.start_time || '';
-		tr.querySelector( 'input[name*="[end_time]"]' ).value   = day.end_time || '';
+		tr.querySelector( 'input[name*="[date]"]' ).value = day.date || '';
+		setTime( tr.querySelector( 'input[name*="[start_time]"]' ), day.start_time );
+		setTime( tr.querySelector( 'input[name*="[end_time]"]' ), day.end_time );
 
 		container.querySelector( '.nnr-days__table tbody' ).appendChild( tr );
 		return tr;
+	}
+
+	/**
+	 * Sets a time input with a 15-minute step (the browser's picker offers
+	 * :00/:15/:30/:45). The step is left off for a saved time that isn't on
+	 * that grid, since the browser would otherwise refuse to submit the form.
+	 * Mirrors NNR_Meta_Box::time_step_attr().
+	 */
+	function setTime( input, value ) {
+		value = value || '';
+		input.value = value;
+		if ( '' === value || 0 === parseInt( value.slice( 3, 5 ), 10 ) % 15 ) {
+			input.step = '900';
+		} else {
+			input.removeAttribute( 'step' );
+		}
 	}
 
 	function refresh( container ) {

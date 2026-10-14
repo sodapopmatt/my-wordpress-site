@@ -131,7 +131,7 @@ class NNR_Admin_List {
 				</label>
 				<label>
 					<span class="title"><?php esc_html_e( 'Start Time', 'nnr-events' ); ?></span>
-					<input type="time" name="_nnr_start_time" />
+					<input type="time" name="_nnr_start_time" step="900" />
 				</label>
 				<label>
 					<span class="title"><?php esc_html_e( 'End Date', 'nnr-events' ); ?></span>
@@ -139,7 +139,7 @@ class NNR_Admin_List {
 				</label>
 				<label>
 					<span class="title"><?php esc_html_e( 'End Time', 'nnr-events' ); ?></span>
-					<input type="time" name="_nnr_end_time" />
+					<input type="time" name="_nnr_end_time" step="900" />
 				</label>
 				<label>
 					<span class="title"><?php esc_html_e( 'Venue', 'nnr-events' ); ?></span>

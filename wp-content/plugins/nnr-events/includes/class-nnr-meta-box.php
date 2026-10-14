@@ -119,8 +119,8 @@ class NNR_Meta_Box {
 					<?php foreach ( array_values( $days ) as $i => $day ) : ?>
 						<tr class="nnr-days__row">
 							<td><input type="date" name="_nnr_sessions[<?php echo (int) $i; ?>][date]" value="<?php echo esc_attr( $day['date'] ?? '' ); ?>" <?php echo 0 === $i ? 'required' : ''; ?> /></td>
-							<td><input type="time" name="_nnr_sessions[<?php echo (int) $i; ?>][start_time]" value="<?php echo esc_attr( $day['start_time'] ?? '' ); ?>" /></td>
-							<td><input type="time" name="_nnr_sessions[<?php echo (int) $i; ?>][end_time]" value="<?php echo esc_attr( $day['end_time'] ?? '' ); ?>" /></td>
+							<td><input type="time" name="_nnr_sessions[<?php echo (int) $i; ?>][start_time]" value="<?php echo esc_attr( $day['start_time'] ?? '' ); ?>" <?php echo self::time_step_attr( $day['start_time'] ?? '' ); ?> /></td>
+							<td><input type="time" name="_nnr_sessions[<?php echo (int) $i; ?>][end_time]" value="<?php echo esc_attr( $day['end_time'] ?? '' ); ?>" <?php echo self::time_step_attr( $day['end_time'] ?? '' ); ?> /></td>
 							<td><button type="button" class="button-link nnr-days__remove"><?php esc_html_e( 'Remove', 'nnr-events' ); ?></button></td>
 						</tr>
 					<?php endforeach; ?>
@@ -146,6 +146,16 @@ class NNR_Meta_Box {
 	 */
 	public static function get_fields() {
 		return self::$fields;
+	}
+
+	/**
+	 * 15-minute step for a time input (the browser's picker offers :00/:15/
+	 * :30/:45). Left off when a saved time isn't on that grid, since the
+	 * browser would then refuse to submit the form until it's changed.
+	 * Mirrored by applyStep() in assets/js/admin-event-days.js.
+	 */
+	private static function time_step_attr( $value ) {
+		return ( '' === $value || 0 === (int) substr( $value, 3, 2 ) % 15 ) ? 'step="900"' : '';
 	}
 
 	public function add_meta_box() {
