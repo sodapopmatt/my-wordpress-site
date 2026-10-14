@@ -48,6 +48,34 @@ function apiErrorMessage( e, fallback ) {
 	return fallback;
 }
 
+// The preview is fetched one beehiiv page per request (see ImportPreview.php).
+// A slow or killed request only costs that one page, which is retried with a
+// short backoff before giving up — cold beehiiv caches make the first fetch of
+// a page the slowest, so a retry usually succeeds.
+const PREVIEW_MAX_ITEMS = 1000;
+const PREVIEW_PAGE_ATTEMPTS = 3;
+const PREVIEW_NO_RETRY_CODES = [
+	'beehiiv_sync_auth',
+	'beehiiv_sync_no_credentials',
+	'rest_cookie_invalid_nonce',
+	'rest_forbidden',
+];
+
+const sleep = ( ms ) => new Promise( ( resolve ) => setTimeout( resolve, ms ) );
+
+async function fetchPreviewPage( payload ) {
+	for ( let attempt = 1; ; attempt++ ) {
+		try {
+			return await api.previewImport( payload );
+		} catch ( e ) {
+			if ( attempt >= PREVIEW_PAGE_ATTEMPTS || PREVIEW_NO_RETRY_CODES.includes( e?.code ) ) {
+				throw e;
+			}
+			await sleep( 2000 * attempt );
+		}
+	}
+}
+
 function formatDate( ts ) {
 	if ( ! ts ) return '—';
 	try {
@@ -93,6 +121,10 @@ export default function Import( { credentialsConfigured } ) {
 	const [ selected, setSelected ] = useState( {} );
 	const [ previewing, setPreviewing ] = useState( false );
 	const [ previewElapsed, setPreviewElapsed ] = useState( 0 );
+	const [ previewProgress, setPreviewProgress ] = useState( null );
+	// Bumped whenever a preview is started or invalidated, so an in-flight
+	// page loop can tell its results are stale and stop.
+	const previewTokenRef = useRef( 0 );
 
 	// Run state
 	const [ runId, setRunId ] = useState( null );
@@ -164,10 +196,8 @@ export default function Import( { credentialsConfigured } ) {
 		} )();
 	}, [ fixedTaxonomy, taxonomies ] );
 
-	// Tick an elapsed-seconds counter while a preview is in flight. The preview
-	// is one blocking request that walks every page server-side, so this is the
-	// only progress signal we can surface — but it tells the user it's working
-	// and sets expectations for large publications.
+	// Tick an elapsed-seconds counter while a preview is in flight, alongside
+	// the page-by-page progress.
 	useEffect( () => {
 		if ( ! previewing ) {
 			setPreviewElapsed( 0 );
@@ -183,8 +213,11 @@ export default function Import( { credentialsConfigured } ) {
 	// Changing what to pull from beehiiv invalidates an existing preview.
 	const statusesKey = JSON.stringify( selectedStatuses );
 	useEffect( () => {
+		previewTokenRef.current++;
 		setPreview( null );
 		setSelected( {} );
+		setPreviewing( false );
+		setPreviewProgress( null );
 	}, [ audience, statusesKey ] );
 
 	const toggleStatus = ( key ) => ( checked ) => {
@@ -216,21 +249,55 @@ export default function Import( { credentialsConfigured } ) {
 			return;
 		}
 
+		const token = ++previewTokenRef.current;
 		setPreviewing( true );
+		setPreviewProgress( null );
 		setError( null );
 		setRun( null );
 		setRunId( null );
 
+		const payload = basePayload();
+		const items = [];
+		const summary = { new: 0, update: 0, unchanged: 0, skip: 0, total: 0 };
+		// No status on the first call: the server starts from its own canonical
+		// status order and its `next` cursor walks the rest in that order.
+		let cursor = { page: 1 };
+		let truncated = false;
+
 		try {
-			const result = await api.previewImport( basePayload() );
-			setPreview( result );
+			while ( cursor ) {
+				const page = await fetchPreviewPage( { ...payload, ...cursor } );
+				if ( token !== previewTokenRef.current ) return;
+
+				items.push( ...( page.items || [] ) );
+				Object.keys( summary ).forEach( ( key ) => {
+					summary[ key ] += page.summary?.[ key ] || 0;
+				} );
+				setPreviewProgress( {
+					status: page.status,
+					page: page.page,
+					totalPages: page.total_pages,
+					scanned: summary.total,
+				} );
+
+				cursor = page.next || null;
+				if ( cursor && summary.total >= PREVIEW_MAX_ITEMS ) {
+					truncated = true;
+					cursor = null;
+				}
+			}
+
+			// Newest first for display. Posts without a publish date sort last.
+			items.sort( ( a, b ) => ( b.publish_date || 0 ) - ( a.publish_date || 0 ) );
+			setPreview( { items, summary, truncated } );
 			// Default-select everything actionable (new + update).
 			const next = {};
-			( result.items || [] ).forEach( ( item ) => {
+			items.forEach( ( item ) => {
 				if ( item.selectable ) next[ item.beehiiv_id ] = true;
 			} );
 			setSelected( next );
 		} catch ( e ) {
+			if ( token !== previewTokenRef.current ) return;
 			setError(
 				apiErrorMessage(
 					e,
@@ -242,7 +309,11 @@ export default function Import( { credentialsConfigured } ) {
 			);
 			setPreview( null );
 		} finally {
-			setPreviewing( false );
+			// A stale loop must not clear the busy state of a newer preview.
+			if ( token === previewTokenRef.current ) {
+				setPreviewing( false );
+				setPreviewProgress( null );
+			}
 		}
 	};
 
@@ -528,23 +599,28 @@ export default function Import( { credentialsConfigured } ) {
 					<HStack justify="flex-start" spacing={ 2 } expanded={ false }>
 						<Spinner />
 						<span>
-							{ sprintf(
-								/* translators: %d: seconds elapsed */
-								__(
-									'Fetching posts from Beehiiv and checking what would import… (%ds)',
-									'beehiiv-sync'
-								),
-								previewElapsed
-							) }
-							{ previewElapsed >= 10 && (
-								<>
-									{ ' ' }
-									{ __(
-										'Large publications can take up to a minute.',
-										'beehiiv-sync'
-									) }
-								</>
-							) }
+							{ previewProgress
+								? sprintf(
+										/* translators: 1: beehiiv status label, 2: page number, 3: total pages, 4: posts checked so far, 5: seconds elapsed */
+										__(
+											'Checking %1$s: page %2$d of %3$d — %4$d posts checked so far (%5$ds)',
+											'beehiiv-sync'
+										),
+										BEEHIIV_STATUSES.find( ( s ) => s.value === previewProgress.status )
+											?.label || previewProgress.status,
+										previewProgress.page,
+										previewProgress.totalPages,
+										previewProgress.scanned,
+										previewElapsed
+								  )
+								: sprintf(
+										/* translators: %d: seconds elapsed */
+										__(
+											'Fetching posts from Beehiiv and checking what would import… (%ds)',
+											'beehiiv-sync'
+										),
+										previewElapsed
+								  ) }
 						</span>
 					</HStack>
 				</Notice>

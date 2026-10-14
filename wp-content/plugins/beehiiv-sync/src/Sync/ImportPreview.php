@@ -6,16 +6,17 @@ namespace BeehiivSync\Sync;
 use BeehiivSync\Api\Client;
 
 /**
- * Synchronous dry-run of an import.
+ * Synchronous dry-run of an import, one beehiiv page at a time.
  *
- * Walks every page of the selected beehiiv statuses, runs each post through
- * the same PostMapper the real importer uses, and reports what *would* happen
+ * Fetches a single page of one beehiiv status, runs each post through the
+ * same PostMapper the real importer uses, and reports what *would* happen
  * (new / update / unchanged / skip) without writing anything to WordPress.
  *
- * This drives the preview screen so the user can pick exactly which posts to
- * import. It is intentionally synchronous — the caller is a REST request, not
- * an Action Scheduler worker — so a hard cap keeps very large publications
- * from blowing the request timeout.
+ * The preview screen calls this repeatedly, following the returned `next`
+ * cursor, and merges the pages client-side. Keeping each REST request to a
+ * single beehiiv call stops large publications from blowing the PHP / proxy
+ * request timeout — walking every page in one request used to fail on cold
+ * caches and only succeed on a retry.
  */
 final class ImportPreview {
 
@@ -24,8 +25,6 @@ final class ImportPreview {
 	public const ACTION_UNCHANGED = 'unchanged';
 	public const ACTION_SKIP      = 'skip';
 
-	private const MAX_ITEMS = 1000;
-
 	public function __construct(
 		private readonly Client $client,
 		private readonly PostMapper $mapper,
@@ -33,83 +32,89 @@ final class ImportPreview {
 	) {}
 
 	/**
+	 * Preview one page of one beehiiv status.
+	 *
 	 * @return array{
 	 *   items: array<int, array<string, mixed>>,
 	 *   summary: array<string, int>,
-	 *   truncated: bool
+	 *   status: string,
+	 *   page: int,
+	 *   total_pages: int,
+	 *   total_results: int,
+	 *   next: array{status: string, page: int}|null
 	 * }
 	 */
-	public function build( ImportParams $params, int $max_items = self::MAX_ITEMS ): array {
-		$items     = [];
-		$summary   = [
+	public function build_page( ImportParams $params, string $beehiiv_status, int $page ): array {
+		$items   = [];
+		$summary = [
 			self::ACTION_NEW       => 0,
 			self::ACTION_UPDATE    => 0,
 			self::ACTION_UNCHANGED => 0,
 			self::ACTION_SKIP      => 0,
 			'total'                => 0,
 		];
-		$scanned   = 0;
-		$truncated = false;
 
-		foreach ( $params->beehiiv_statuses as $beehiiv_status ) {
-			$page = 1;
-			do {
-				$result = $this->client->list_posts( $params->api_query( $beehiiv_status, $page ) );
+		$result = $this->client->list_posts( $params->api_query( $beehiiv_status, $page ) );
 
-				foreach ( $result->posts as $post ) {
-					if ( $scanned >= $max_items ) {
-						$truncated = true;
-						break 3;
-					}
-					$scanned++;
+		foreach ( $result->posts as $post ) {
+			$existing = $this->repository->find_existing(
+				$post->id,
+				$post->slug,
+				(string) ( $params->defaults['post_type'] ?? 'post' )
+			);
+			$plan     = $this->mapper->plan( $post, $params->defaults, $existing );
+			$action   = $this->classify( $plan );
 
-					$existing = $this->repository->find_existing(
-						$post->id,
-						$post->slug,
-						(string) ( $params->defaults['post_type'] ?? 'post' )
-					);
-					$plan     = $this->mapper->plan( $post, $params->defaults, $existing );
-					$action   = $this->classify( $plan );
+			$summary[ $action ]++;
+			$summary['total']++;
 
-					$summary[ $action ]++;
-					$summary['total']++;
+			// Only surface posts that would actually be imported (new or
+			// update). Unchanged/skipped posts are reflected in the summary
+			// counts but kept out of the selectable list.
+			if ( $action !== self::ACTION_NEW && $action !== self::ACTION_UPDATE ) {
+				continue;
+			}
 
-					// Only surface posts that would actually be imported (new or
-					// update). Unchanged/skipped posts are reflected in the summary
-					// counts but kept out of the selectable list.
-					if ( $action !== self::ACTION_NEW && $action !== self::ACTION_UPDATE ) {
-						continue;
-					}
-
-					$items[] = [
-						'beehiiv_id'       => $post->id,
-						'title'            => $post->title,
-						'beehiiv_status'   => $post->status,
-						'publish_date'     => $post->publish_date,
-						'web_url'          => $post->web_url,
-						'action'           => $action,
-						'skip_reason'      => $plan->skip_reason,
-						'existing_post_id' => $plan->existing_post_id,
-						'target_status'    => $plan->post_args['post_status'] ?? null,
-						'selectable'       => true,
-					];
-				}
-
-				$page++;
-			} while ( $page <= $result->total_pages );
+			$items[] = [
+				'beehiiv_id'       => $post->id,
+				'title'            => $post->title,
+				'beehiiv_status'   => $post->status,
+				'publish_date'     => $post->publish_date,
+				'web_url'          => $post->web_url,
+				'action'           => $action,
+				'skip_reason'      => $plan->skip_reason,
+				'existing_post_id' => $plan->existing_post_id,
+				'target_status'    => $plan->post_args['post_status'] ?? null,
+				'selectable'       => true,
+			];
 		}
 
-		// Newest first for display. Posts without a publish date sort last.
-		usort(
-			$items,
-			static fn( array $a, array $b ): int => ( $b['publish_date'] ?? 0 ) <=> ( $a['publish_date'] ?? 0 )
-		);
-
 		return [
-			'items'     => $items,
-			'summary'   => $summary,
-			'truncated' => $truncated,
+			'items'         => $items,
+			'summary'       => $summary,
+			'status'        => $beehiiv_status,
+			'page'          => $page,
+			'total_pages'   => $result->total_pages,
+			'total_results' => $result->total_results,
+			'next'          => $this->next_cursor( $params, $beehiiv_status, $page, $result->total_pages ),
 		];
+	}
+
+	/**
+	 * @return array{status: string, page: int}|null  null when every page of every status has been seen.
+	 */
+	private function next_cursor( ImportParams $params, string $beehiiv_status, int $page, int $total_pages ): ?array {
+		if ( $page < $total_pages ) {
+			return [ 'status' => $beehiiv_status, 'page' => $page + 1 ];
+		}
+
+		$statuses = $params->beehiiv_statuses;
+		$index    = array_search( $beehiiv_status, $statuses, true );
+		if ( $index !== false && isset( $statuses[ $index + 1 ] ) ) {
+			return [ 'status' => $statuses[ $index + 1 ], 'page' => 1 ];
+		}
+
+		return null;
 	}
 
 	private function classify( ImportPlan $plan ): string {

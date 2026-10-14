@@ -25,6 +25,8 @@ use WP_REST_Response;
 
 final class ImportController extends Controller {
 
+	private const PREVIEW_PER_PAGE = 20;
+
 	public function __construct(
 		private readonly Credentials $credentials,
 		private readonly Options $options,
@@ -71,7 +73,17 @@ final class ImportController extends Controller {
 			return new WP_Error( 'beehiiv_sync_no_credentials', 'Connect beehiiv credentials first.', [ 'status' => 400 ] );
 		}
 
-		$params  = $this->build_params( $request );
+		// Each call previews a single beehiiv page; the client follows the
+		// returned `next` cursor. Pages are kept small because expanded post
+		// bodies make every page multi-MB and slow for beehiiv to serve.
+		$params = $this->build_params( $request, [ 'per_page' => self::PREVIEW_PER_PAGE ] );
+		$input  = $this->input( $request );
+
+		$status = isset( $input['status'] ) && in_array( $input['status'], $params->beehiiv_statuses, true )
+			? (string) $input['status']
+			: $params->beehiiv_statuses[0];
+		$page   = max( 1, (int) ( $input['page'] ?? 1 ) );
+
 		$preview = new ImportPreview(
 			$this->make_client(),
 			new PostMapper( new ContentSanitizer() ),
@@ -79,7 +91,7 @@ final class ImportController extends Controller {
 		);
 
 		try {
-			$result = $preview->build( $params );
+			$result = $preview->build_page( $params, $status, $page );
 		} catch ( AuthException $e ) {
 			return new WP_Error( 'beehiiv_sync_auth', 'Beehiiv rejected your credentials. Reconnect them and try again.', [ 'status' => 401 ] );
 		} catch ( RateLimitException $e ) {
@@ -113,10 +125,20 @@ final class ImportController extends Controller {
 		return new WP_REST_Response( [ 'run_id' => $run_id, 'status' => 'queued' ], 202 );
 	}
 
-	private function build_params( WP_REST_Request $request ): ImportParams {
+	/**
+	 * @return array<string, mixed>
+	 */
+	private function input( WP_REST_Request $request ): array {
 		$body  = $request->get_json_params();
 		$input = is_array( $body ) ? $body : $request->get_params();
-		$input = is_array( $input ) ? $input : [];
+		return is_array( $input ) ? $input : [];
+	}
+
+	/**
+	 * @param array<string, mixed> $overrides  Input keys forced by the server, e.g. preview page size.
+	 */
+	private function build_params( WP_REST_Request $request, array $overrides = [] ): ImportParams {
+		$input = array_merge( $this->input( $request ), $overrides );
 
 		$persisted_defaults = $this->options->all()['defaults'];
 		$override_defaults  = is_array( $input['defaults'] ?? null ) ? $input['defaults'] : [];
