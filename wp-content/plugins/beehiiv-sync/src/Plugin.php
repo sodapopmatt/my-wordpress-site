@@ -46,6 +46,21 @@ final class Plugin {
 		( new Hooks() )->register();
 
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
+		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_content_styles' ] );
+	}
+
+	/**
+	 * Base image styles for imported posts (wrapped in .bs-beehiiv-post by
+	 * ContentSanitizer). beehiiv centers images with `margin: 0 auto`, which
+	 * relies on its site-wide base stylesheet making images block-level — a
+	 * stylesheet the import doesn't carry over. Applied here rather than baked
+	 * into post_content so existing posts are fixed without a re-import (and
+	 * without changing every post's content hash).
+	 */
+	public function enqueue_content_styles(): void {
+		wp_register_style( 'beehiiv-sync-content', false, [], BS_VERSION );
+		wp_enqueue_style( 'beehiiv-sync-content' );
+		wp_add_inline_style( 'beehiiv-sync-content', '.bs-beehiiv-post img{display:block;max-width:100%;height:auto}' );
 	}
 
 	public function load_textdomain(): void {
