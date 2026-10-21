@@ -13,6 +13,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # beehiiv-sync's admin UI is compiled into build/, which isn't committed —
+      # build it here so the deployed JS always matches the deployed PHP.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: wp-content/plugins/beehiiv-sync/package-lock.json
+
+      - name: Build beehiiv-sync admin UI
+        working-directory: wp-content/plugins/beehiiv-sync
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
       - name: Build clean staging folder
         run: |
           mkdir -p staging
