@@ -624,11 +624,19 @@ class NNR_Shortcode {
 
 			// The venue is usually who's actually running a listing like
 			// this (e.g. a bar hosting its own trivia night), so it doubles
-			// as organizer rather than leaving the field unset.
+			// as organizer rather than leaving the field unset. Without a
+			// venue, fall back to this site as the listing's publisher so
+			// the field is never missing.
 			if ( $event['venue'] ) {
 				$node['organizer'] = array(
 					'@type' => 'Organization',
 					'name'  => $event['venue'],
+				);
+			} else {
+				$node['organizer'] = array(
+					'@type' => 'Organization',
+					'name'  => get_bloginfo( 'name' ),
+					'url'   => home_url( '/' ),
 				);
 			}
 
