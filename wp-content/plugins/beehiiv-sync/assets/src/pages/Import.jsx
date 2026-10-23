@@ -357,12 +357,16 @@ export default function Import( { credentialsConfigured } ) {
 		try {
 			const { run_id } = await api.startImport( { ...basePayload(), selected_ids: ids } );
 			setRunId( run_id );
-			// Aggressive polling at first (every 1s), then ease off to 2s after 30 seconds.
-			let elapsed = 0;
-			const tick = () => {
-				poll( run_id );
-				elapsed += 1000;
-				const delay = elapsed < 30_000 ? 1000 : 2000;
+			// Each status check also runs a slice of the queued import work
+			// server-side (see ImportController::drive_queue()), so wait for
+			// one to finish before scheduling the next — 1s apart at first,
+			// easing off to 2s after 30 seconds.
+			const startedAt = Date.now();
+			const tick = async () => {
+				if ( await poll( run_id ) ) {
+					return;
+				}
+				const delay = Date.now() - startedAt < 30_000 ? 1000 : 2000;
 				pollRef.current = setTimeout( tick, delay );
 			};
 			pollRef.current = setTimeout( tick, 500 );
@@ -379,13 +383,16 @@ export default function Import( { credentialsConfigured } ) {
 		}
 	};
 
+	// Resolves true once polling should stop (run finished, or an error).
 	const poll = async ( id ) => {
 		try {
 			const next = await api.getImportStatus( id );
 			setRun( next );
 			if ( next.status === 'completed' || next.status === 'failed' ) {
 				clearTimeout( pollRef.current );
+				return true;
 			}
+			return false;
 		} catch ( e ) {
 			setError(
 				apiErrorMessage(
@@ -394,6 +401,7 @@ export default function Import( { credentialsConfigured } ) {
 				)
 			);
 			clearTimeout( pollRef.current );
+			return true;
 		}
 	};
 
@@ -639,6 +647,14 @@ export default function Import( { credentialsConfigured } ) {
 			{ run && (
 				<VStack spacing={ 3 }>
 					<RunProgress run={ run } />
+					{ isRunning && (
+						<Notice status="info" isDismissible={ false }>
+							{ __(
+								'Keep this page open until the import finishes — it does the importing while it checks progress.',
+								'beehiiv-sync'
+							) }
+						</Notice>
+					) }
 					{ ! isRunning && (
 						<HStack justify="flex-start">
 							<Button variant="secondary" onClick={ resetForNewImport }>

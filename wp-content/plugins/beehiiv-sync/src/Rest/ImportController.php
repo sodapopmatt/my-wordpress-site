@@ -15,6 +15,7 @@ use BeehiivSync\Sync\ContentSanitizer;
 use BeehiivSync\Sync\Importer;
 use BeehiivSync\Sync\ImportParams;
 use BeehiivSync\Sync\ImportPreview;
+use BeehiivSync\Sync\ImportRun;
 use BeehiivSync\Sync\ItemProcessor;
 use BeehiivSync\Sync\PostMapper;
 use BeehiivSync\Sync\RunRepository;
@@ -26,6 +27,9 @@ use WP_REST_Response;
 final class ImportController extends Controller {
 
 	private const PREVIEW_PER_PAGE = 20;
+
+	// Seconds of queued import work each progress check may do (see drive_queue()).
+	private const QUEUE_SLICE_SECONDS = 10;
 
 	public function __construct(
 		private readonly Credentials $credentials,
@@ -156,10 +160,51 @@ final class ImportController extends Controller {
 	}
 
 	public function status( WP_REST_Request $request ): WP_REST_Response|WP_Error {
-		$run = $this->runs->load( (string) $request->get_param( 'run_id' ) );
+		$run_id = (string) $request->get_param( 'run_id' );
+		$run    = $this->runs->load( $run_id );
 		if ( $run === null ) {
 			return new WP_Error( 'beehiiv_sync_run_not_found', 'Run not found or expired.', [ 'status' => 404 ] );
 		}
+
+		if ( $run->status === ImportRun::STATUS_QUEUED || $run->status === ImportRun::STATUS_RUNNING ) {
+			$this->drive_queue();
+			$run = $this->runs->load( $run_id ) ?? $run;
+		}
+
 		return new WP_REST_Response( $run->to_array() );
+	}
+
+	/**
+	 * Run this plugin's due Action Scheduler jobs inside the status request.
+	 *
+	 * Action Scheduler normally runs from WP-Cron, which fires via a loopback
+	 * HTTP request that this site's host blocks — so imports sat at "queued"
+	 * forever. The import screen polls this endpoint while a run is in
+	 * progress, so each poll works through the queue for a short slice of
+	 * time instead. Jobs are claimed first, so a real cron run happening at
+	 * the same time can't execute the same job twice.
+	 */
+	private function drive_queue(): void {
+		if ( ! class_exists( \ActionScheduler::class ) ) {
+			return;
+		}
+
+		$store    = \ActionScheduler::store();
+		$runner   = \ActionScheduler::runner();
+		$deadline = microtime( true ) + self::QUEUE_SLICE_SECONDS;
+
+		while ( microtime( true ) < $deadline ) {
+			// One job per claim, so the time slice is checked between jobs.
+			$claim   = $store->stake_claim( 1, null, [], Importer::GROUP );
+			$actions = $claim->get_actions();
+			if ( $actions === [] ) {
+				$store->release_claim( $claim );
+				return;
+			}
+			foreach ( $actions as $action_id ) {
+				$runner->process_action( $action_id, 'Beehiiv Sync import screen' );
+			}
+			$store->release_claim( $claim );
+		}
 	}
 }

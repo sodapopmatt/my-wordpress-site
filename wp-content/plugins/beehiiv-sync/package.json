@@ -1,6 +1,6 @@
 {
   "name": "beehiiv-sync",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Admin UI for the Beehiiv Sync WordPress plugin.",
   "scripts": {
