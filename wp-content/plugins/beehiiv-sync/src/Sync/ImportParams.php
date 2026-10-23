@@ -73,7 +73,7 @@ final class ImportParams {
 	}
 
 	private static function sanitize_date( mixed $value ): ?string {
-		if ( ! is_string( $value ) || preg_match( '/^(d{4})-(d{2})-(d{2})$/', $value, $m ) !== 1 ) {
+		if ( ! is_string( $value ) || preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m ) !== 1 ) {
 			return null;
 		}
 		return checkdate( (int) $m[2], (int) $m[3], (int) $m[1] ) ? $value : null;
@@ -96,11 +96,11 @@ final class ImportParams {
 			return 'undated';
 		}
 
-		$tz = function_exists( 'wp_timezone' ) ? wp_timezone() : new DateTimeZone( 'UTC' );
-		if ( $this->date_from !== null && $publish_date < ( new DateTimeImmutable( $this->date_from . ' 00:00:00', $tz ) )->getTimestamp() ) {
+		$tz = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+		if ( $this->date_from !== null && $publish_date < ( new \DateTimeImmutable( $this->date_from . ' 00:00:00', $tz ) )->getTimestamp() ) {
 			return 'older';
 		}
-		if ( $this->date_to !== null && $publish_date > ( new DateTimeImmutable( $this->date_to . ' 23:59:59', $tz ) )->getTimestamp() ) {
+		if ( $this->date_to !== null && $publish_date > ( new \DateTimeImmutable( $this->date_to . ' 23:59:59', $tz ) )->getTimestamp() ) {
 			return 'newer';
 		}
 		return 'in';
