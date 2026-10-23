@@ -56,7 +56,19 @@ final class ImportPreview {
 
 		$result = $this->client->list_posts( $params->api_query( $beehiiv_status, $page ) );
 
+		// With a time frame, posts arrive newest-published first; the first
+		// one older than the frame means every later page is older too.
+		$reached_older = false;
+
 		foreach ( $result->posts as $post ) {
+			$position = $params->date_range_position( $post->publish_date );
+			if ( $position === 'older' ) {
+				$reached_older = true;
+			}
+			if ( $position !== 'in' ) {
+				continue;
+			}
+
 			$existing = $this->repository->find_existing(
 				$post->id,
 				$post->slug,
@@ -96,7 +108,7 @@ final class ImportPreview {
 			'page'          => $page,
 			'total_pages'   => $result->total_pages,
 			'total_results' => $result->total_results,
-			'next'          => $this->next_cursor( $params, $beehiiv_status, $page, $result->total_pages ),
+			'next'          => $this->next_cursor( $params, $beehiiv_status, $page, $reached_older ? $page : $result->total_pages ),
 		];
 	}
 

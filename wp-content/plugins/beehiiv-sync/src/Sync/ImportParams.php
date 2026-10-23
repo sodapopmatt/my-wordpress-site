@@ -19,6 +19,8 @@ final class ImportParams {
 	 * @param array<string, mixed>  $defaults          The 'defaults' block from settings.
 	 * @param string[]|null         $selected_ids      When set, only these beehiiv ids are imported
 	 *                                                  (the user's preview selection). null = import all.
+	 * @param string|null           $date_from         Optional time frame, Y-m-d in the site's timezone
+	 * @param string|null           $date_to           (inclusive). null on both = all time.
 	 */
 	public function __construct(
 		public readonly string $audience,
@@ -26,6 +28,8 @@ final class ImportParams {
 		public readonly int $per_page,
 		public readonly array $defaults,
 		public readonly ?array $selected_ids = null,
+		public readonly ?string $date_from = null,
+		public readonly ?string $date_to = null,
 	) {}
 
 	/**
@@ -59,7 +63,47 @@ final class ImportParams {
 			);
 		}
 
-		return new self( $audience, $statuses, $per_page, $defaults, $selected_ids );
+		$date_from = self::sanitize_date( $input['date_from'] ?? null );
+		$date_to   = self::sanitize_date( $input['date_to'] ?? null );
+		if ( $date_from !== null && $date_to !== null && $date_from > $date_to ) {
+			[ $date_from, $date_to ] = [ $date_to, $date_from ];
+		}
+
+		return new self( $audience, $statuses, $per_page, $defaults, $selected_ids, $date_from, $date_to );
+	}
+
+	private static function sanitize_date( mixed $value ): ?string {
+		if ( ! is_string( $value ) || preg_match( '/^(d{4})-(d{2})-(d{2})$/', $value, $m ) !== 1 ) {
+			return null;
+		}
+		return checkdate( (int) $m[2], (int) $m[3], (int) $m[1] ) ? $value : null;
+	}
+
+	public function has_date_range(): bool {
+		return $this->date_from !== null || $this->date_to !== null;
+	}
+
+	/**
+	 * Where a post's publish date falls relative to the time frame:
+	 * 'in' (or always, with no time frame), 'newer', 'older', or 'undated'
+	 * (no publish date, e.g. an unscheduled draft — only shown under all time).
+	 */
+	public function date_range_position( ?int $publish_date ): string {
+		if ( ! $this->has_date_range() ) {
+			return 'in';
+		}
+		if ( $publish_date === null || $publish_date <= 0 ) {
+			return 'undated';
+		}
+
+		$tz = function_exists( 'wp_timezone' ) ? wp_timezone() : new DateTimeZone( 'UTC' );
+		if ( $this->date_from !== null && $publish_date < ( new DateTimeImmutable( $this->date_from . ' 00:00:00', $tz ) )->getTimestamp() ) {
+			return 'older';
+		}
+		if ( $this->date_to !== null && $publish_date > ( new DateTimeImmutable( $this->date_to . ' 23:59:59', $tz ) )->getTimestamp() ) {
+			return 'newer';
+		}
+		return 'in';
 	}
 
 	/**
@@ -72,6 +116,8 @@ final class ImportParams {
 			'per_page'         => $this->per_page,
 			'defaults'         => $this->defaults,
 			'selected_ids'     => $this->selected_ids,
+			'date_from'        => $this->date_from,
+			'date_to'          => $this->date_to,
 		];
 	}
 
@@ -85,6 +131,8 @@ final class ImportParams {
 			per_page: (int) ( $data['per_page'] ?? 50 ),
 			defaults: is_array( $data['defaults'] ?? null ) ? $data['defaults'] : [],
 			selected_ids: is_array( $data['selected_ids'] ?? null ) ? array_values( array_map( 'strval', $data['selected_ids'] ) ) : null,
+			date_from: self::sanitize_date( $data['date_from'] ?? null ),
+			date_to: self::sanitize_date( $data['date_to'] ?? null ),
 		);
 	}
 
@@ -103,6 +151,12 @@ final class ImportParams {
 			'order_by'  => 'created',
 			'direction' => 'asc',
 		];
+		// With a time frame, newest-published first instead, so the walk can
+		// stop at the first post older than the frame (see date_range_position()).
+		if ( $this->has_date_range() ) {
+			$query['order_by']  = 'publish_date';
+			$query['direction'] = 'desc';
+		}
 		if ( $this->audience !== 'all' ) {
 			$query['audience'] = $this->audience;
 		}

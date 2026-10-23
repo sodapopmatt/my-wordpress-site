@@ -81,4 +81,42 @@ final class ImportParamsTest extends TestCase {
 		self::assertSame( $p1->audience, $p2->audience );
 		self::assertSame( $p1->beehiiv_statuses, $p2->beehiiv_statuses );
 	}
+
+	public function test_date_range_is_optional_and_validated(): void {
+		$all = ImportParams::build( [], $this->defaults() );
+		self::assertFalse( $all->has_date_range() );
+		self::assertSame( 'created', $all->api_query( 'confirmed', 1 )['order_by'] );
+
+		$bad = ImportParams::build( [ 'date_from' => '2026-02-30', 'date_to' => 'yesterday' ], $this->defaults() );
+		self::assertFalse( $bad->has_date_range() );
+
+		$swapped = ImportParams::build( [ 'date_from' => '2026-10-31', 'date_to' => '2026-10-01' ], $this->defaults() );
+		self::assertSame( '2026-10-01', $swapped->date_from );
+		self::assertSame( '2026-10-31', $swapped->date_to );
+	}
+
+	public function test_date_range_orders_newest_published_first_and_round_trips(): void {
+		$p     = ImportParams::build( [ 'date_from' => '2026-10-01' ], $this->defaults() );
+		$query = $p->api_query( 'confirmed', 1 );
+		self::assertSame( 'publish_date', $query['order_by'] );
+		self::assertSame( 'desc', $query['direction'] );
+
+		$p2 = ImportParams::from_array( $p->to_array() );
+		self::assertSame( '2026-10-01', $p2->date_from );
+		self::assertNull( $p2->date_to );
+	}
+
+	public function test_date_range_position_is_inclusive_by_day(): void {
+		// No wp_timezone() in unit tests, so bounds are UTC days.
+		$p = ImportParams::build( [ 'date_from' => '2026-10-01', 'date_to' => '2026-10-31' ], $this->defaults() );
+		self::assertSame( 'older', $p->date_range_position( strtotime( '2026-09-30 23:59:59 UTC' ) ) );
+		self::assertSame( 'in', $p->date_range_position( strtotime( '2026-10-01 00:00:00 UTC' ) ) );
+		self::assertSame( 'in', $p->date_range_position( strtotime( '2026-10-31 23:59:59 UTC' ) ) );
+		self::assertSame( 'newer', $p->date_range_position( strtotime( '2026-11-01 00:00:00 UTC' ) ) );
+		self::assertSame( 'undated', $p->date_range_position( null ) );
+
+		$open = ImportParams::build( [ 'date_from' => '2026-10-01' ], $this->defaults() );
+		self::assertSame( 'in', $open->date_range_position( strtotime( '2030-01-01 UTC' ) ) );
+		self::assertSame( 'in', ImportParams::build( [], $this->defaults() )->date_range_position( null ) );
+	}
 }

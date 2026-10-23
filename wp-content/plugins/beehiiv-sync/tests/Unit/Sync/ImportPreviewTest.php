@@ -20,17 +20,18 @@ final class ImportPreviewTest extends TestCase {
 		return new ImportPreview( $client, new PostMapper( new ContentSanitizer() ), $repo );
 	}
 
-	private function params( array $statuses ): ImportParams {
+	private function params( array $statuses, array $extra = [] ): ImportParams {
 		return ImportParams::build(
-			[ 'beehiiv_statuses' => $statuses, 'per_page' => 2 ],
+			[ 'beehiiv_statuses' => $statuses, 'per_page' => 2 ] + $extra,
 			Schema::defaults()['defaults']
 		);
 	}
 
 	/**
-	 * @param string[] $ids
+	 * @param string[]                $ids
+	 * @param array<string, int|null> $dates  Publish timestamps by id (default 1700000000).
 	 */
-	private function page_response( int $page, int $total_pages, array $ids ): array {
+	private function page_response( int $page, int $total_pages, array $ids, array $dates = [] ): array {
 		$data = array_map(
 			static fn( string $id ): array => [
 				'id'           => $id,
@@ -38,7 +39,7 @@ final class ImportPreviewTest extends TestCase {
 				'slug'         => 'slug-' . $id,
 				'status'       => 'confirmed',
 				'audience'     => 'free',
-				'publish_date' => 1700000000,
+				'publish_date' => array_key_exists( $id, $dates ) ? $dates[ $id ] : 1700000000,
 				'content'      => [ 'free' => [ 'web' => '<p>' . $id . '</p>' ] ],
 				'content_tags' => [],
 			],
@@ -109,5 +110,36 @@ final class ImportPreviewTest extends TestCase {
 		self::assertSame( 1, $second['summary']['unchanged'] );
 		self::assertSame( 1, $second['summary']['new'] );
 		self::assertSame( [ 'p2' ], array_column( $second['items'], 'beehiiv_id' ) );
+	}
+
+	public function test_date_range_filters_posts_and_stops_at_older_ones(): void {
+		$params = $this->params( [ 'draft', 'confirmed' ], [ 'date_from' => '2026-10-01', 'date_to' => '2026-10-15' ] );
+		$dates  = [
+			'newer'   => strtotime( '2026-10-20 UTC' ),
+			'in'      => strtotime( '2026-10-10 UTC' ),
+			'undated' => null,
+			'older'   => strtotime( '2026-09-20 UTC' ),
+		];
+
+		// Page 1 of 5, newest first: one post past the end date, one in range,
+		// one undated, then one before the start date — so pages 2-5 are older.
+		$transport = new FakeTransport( [ $this->page_response( 1, 5, array_keys( $dates ), $dates ) ] );
+		$result    = $this->preview( $transport, new FakePostRepository() )->build_page( $params, 'draft', 1 );
+
+		self::assertStringContainsString( 'order_by=publish_date', $transport->calls[0]['url'] );
+		self::assertSame( [ 'in' ], array_column( $result['items'], 'beehiiv_id' ) );
+		self::assertSame( 1, $result['summary']['total'] );
+		self::assertSame( [ 'status' => 'confirmed', 'page' => 1 ], $result['next'] );
+	}
+
+	public function test_date_range_keeps_paging_while_posts_are_in_range(): void {
+		$params    = $this->params( [ 'confirmed' ], [ 'date_from' => '2026-10-01' ] );
+		$dates     = [ 'a' => strtotime( '2026-10-12 UTC' ), 'b' => strtotime( '2026-10-11 UTC' ) ];
+		$transport = new FakeTransport( [ $this->page_response( 1, 3, [ 'a', 'b' ], $dates ) ] );
+
+		$result = $this->preview( $transport, new FakePostRepository() )->build_page( $params, 'confirmed', 1 );
+
+		self::assertSame( [ 'a', 'b' ], array_column( $result['items'], 'beehiiv_id' ) );
+		self::assertSame( [ 'status' => 'confirmed', 'page' => 2 ], $result['next'] );
 	}
 }

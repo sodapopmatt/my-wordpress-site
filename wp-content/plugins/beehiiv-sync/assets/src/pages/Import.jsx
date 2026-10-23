@@ -8,6 +8,7 @@ import {
 	CheckboxControl,
 	Notice,
 	SelectControl,
+	TextControl,
 	Spinner,
 	__experimentalVStack as VStack,
 	__experimentalHStack as HStack,
@@ -99,6 +100,9 @@ export default function Import( { credentialsConfigured } ) {
 
 	// Form state
 	const [ audience, setAudience ] = useState( 'all' );
+	const [ timeFrame, setTimeFrame ] = useState( 'all' );
+	const [ dateFrom, setDateFrom ] = useState( '' );
+	const [ dateTo, setDateTo ] = useState( '' );
 	const [ selectedStatuses, setSelectedStatuses ] = useState( {
 		confirmed: true,
 		draft: false,
@@ -218,7 +222,7 @@ export default function Import( { credentialsConfigured } ) {
 		setSelected( {} );
 		setPreviewing( false );
 		setPreviewProgress( null );
-	}, [ audience, statusesKey ] );
+	}, [ audience, statusesKey, timeFrame, dateFrom, dateTo ] );
 
 	const toggleStatus = ( key ) => ( checked ) => {
 		setSelectedStatuses( ( prev ) => ( { ...prev, [ key ]: checked } ) );
@@ -232,6 +236,8 @@ export default function Import( { credentialsConfigured } ) {
 	const basePayload = () => ( {
 		audience,
 		beehiiv_statuses: selectedBeehiivStatuses(),
+		date_from: 'range' === timeFrame ? dateFrom : '',
+		date_to: 'range' === timeFrame ? dateTo : '',
 		defaults: {
 			post_type: postType,
 			author_id: authorId ? Number( authorId ) : 0,
@@ -246,6 +252,10 @@ export default function Import( { credentialsConfigured } ) {
 	const runPreview = async () => {
 		if ( selectedBeehiivStatuses().length === 0 ) {
 			setError( __( 'Pick at least one Beehiiv status to import.', 'beehiiv-sync' ) );
+			return;
+		}
+		if ( 'range' === timeFrame && ! dateFrom && ! dateTo ) {
+			setError( __( 'Pick a start date, an end date, or both — or switch the time frame to All time.', 'beehiiv-sync' ) );
 			return;
 		}
 
@@ -467,6 +477,46 @@ export default function Import( { credentialsConfigured } ) {
 							onChange={ setAudience }
 							__nextHasNoMarginBottom
 						/>
+
+						<SelectControl
+							label={ __( 'Time frame', 'beehiiv-sync' ) }
+							value={ timeFrame }
+							options={ [
+								{ value: 'all', label: __( 'All time', 'beehiiv-sync' ) },
+								{ value: 'range', label: __( 'Date range', 'beehiiv-sync' ) },
+							] }
+							onChange={ setTimeFrame }
+							__nextHasNoMarginBottom
+						/>
+
+						{ 'range' === timeFrame && (
+							<VStack spacing={ 2 }>
+								<HStack justify="flex-start" spacing={ 4 } wrap>
+									<TextControl
+										type="date"
+										label={ __( 'From', 'beehiiv-sync' ) }
+										value={ dateFrom }
+										max={ dateTo || undefined }
+										onChange={ setDateFrom }
+										__nextHasNoMarginBottom
+									/>
+									<TextControl
+										type="date"
+										label={ __( 'To', 'beehiiv-sync' ) }
+										value={ dateTo }
+										min={ dateFrom || undefined }
+										onChange={ setDateTo }
+										__nextHasNoMarginBottom
+									/>
+								</HStack>
+								<p className="description" style={ { margin: 0 } }>
+									{ __(
+										'By publish date; leave one side blank for open-ended (e.g. only "From" = everything since then). Unscheduled drafts have no publish date, so they only show under All time.',
+										'beehiiv-sync'
+									) }
+								</p>
+							</VStack>
+						) }
 
 						<Divider />
 

@@ -118,7 +118,21 @@ final class Importer {
 			}
 		);
 
+		// With a time frame, posts arrive newest-published first (see
+		// ImportParams::api_query()); the first one older than the frame means
+		// every later page is older too, so stop walking this status there.
+		$reached_older = false;
+
 		foreach ( $result->posts as $post ) {
+			$position = $params->date_range_position( $post->publish_date );
+			if ( $position === 'older' ) {
+				$reached_older = true;
+			}
+			if ( $position !== 'in' ) {
+				$skipped++;
+				continue;
+			}
+
 			// Honour the user's preview selection: only process chosen ids.
 			if ( $selected !== null && ! in_array( $post->id, $selected, true ) ) {
 				$skipped++;
@@ -161,7 +175,7 @@ final class Importer {
 			]
 		);
 
-		$has_next_page = $page < $result->total_pages;
+		$has_next_page = ! $reached_older && $page < $result->total_pages;
 		$this->advance_after_page( $run_id, $status_index, $page, $has_next_page );
 	}
 
