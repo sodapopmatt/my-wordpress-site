@@ -100,7 +100,7 @@ export default function Import( { credentialsConfigured } ) {
 
 	// Form state
 	const [ audience, setAudience ] = useState( 'all' );
-	const [ timeFrame, setTimeFrame ] = useState( 'all' );
+	const [ timeFrame, setTimeFrame ] = useState( 'last7' );
 	const [ dateFrom, setDateFrom ] = useState( '' );
 	const [ dateTo, setDateTo ] = useState( '' );
 	const [ selectedStatuses, setSelectedStatuses ] = useState( {
@@ -135,6 +135,8 @@ export default function Import( { credentialsConfigured } ) {
 	const [ run, setRun ] = useState( null );
 	const [ error, setError ] = useState( null );
 	const [ starting, setStarting ] = useState( false );
+	const [ savingDefaults, setSavingDefaults ] = useState( false );
+	const [ defaultsSaved, setDefaultsSaved ] = useState( false );
 	const pollRef = useRef( null );
 
 	// Load post types, taxonomies, authors + persisted defaults
@@ -233,11 +235,29 @@ export default function Import( { credentialsConfigured } ) {
 			.filter( ( [ , v ] ) => v )
 			.map( ( [ k ] ) => k );
 
+	// The time frame as the API's date_from / date_to (Y-m-d, empty = open).
+	// "Last 7 days" is today plus the 6 days before it, open-ended forward.
+	const timeFrameDates = () => {
+		if ( 'range' === timeFrame ) {
+			return { date_from: dateFrom, date_to: dateTo };
+		}
+		if ( 'last7' === timeFrame ) {
+			const d = new Date();
+			d.setDate( d.getDate() - 6 );
+			const ymd = [
+				d.getFullYear(),
+				String( d.getMonth() + 1 ).padStart( 2, '0' ),
+				String( d.getDate() ).padStart( 2, '0' ),
+			].join( '-' );
+			return { date_from: ymd, date_to: '' };
+		}
+		return { date_from: '', date_to: '' };
+	};
+
 	const basePayload = () => ( {
 		audience,
 		beehiiv_statuses: selectedBeehiivStatuses(),
-		date_from: 'range' === timeFrame ? dateFrom : '',
-		date_to: 'range' === timeFrame ? dateTo : '',
+		...timeFrameDates(),
 		defaults: {
 			post_type: postType,
 			author_id: authorId ? Number( authorId ) : 0,
@@ -248,6 +268,27 @@ export default function Import( { credentialsConfigured } ) {
 			post_status_map: statusMap,
 		},
 	} );
+
+	const statusMapKey = JSON.stringify( statusMap );
+	useEffect( () => {
+		setDefaultsSaved( false );
+	}, [ postType, fixedTaxonomy, fixedTermId, authorId, tagTarget, importMode, audience, statusMapKey ] );
+
+	// Persist the current form choices as the settings defaults the form is
+	// seeded from on load (see the getSettings() effect above).
+	const saveDefaults = async () => {
+		setSavingDefaults( true );
+		setDefaultsSaved( false );
+		setError( null );
+		try {
+			await api.updateSettings( { defaults: { ...basePayload().defaults, audience } } );
+			setDefaultsSaved( true );
+		} catch ( e ) {
+			setError( apiErrorMessage( e, __( 'Could not save your defaults. Please try again.', 'beehiiv-sync' ) ) );
+		} finally {
+			setSavingDefaults( false );
+		}
+	};
 
 	const runPreview = async () => {
 		if ( selectedBeehiivStatuses().length === 0 ) {
@@ -482,10 +523,16 @@ export default function Import( { credentialsConfigured } ) {
 							label={ __( 'Time frame', 'beehiiv-sync' ) }
 							value={ timeFrame }
 							options={ [
-								{ value: 'all', label: __( 'All time', 'beehiiv-sync' ) },
+								{ value: 'last7', label: __( 'Last 7 days', 'beehiiv-sync' ) },
 								{ value: 'range', label: __( 'Date range', 'beehiiv-sync' ) },
+								{ value: 'all', label: __( 'All time', 'beehiiv-sync' ) },
 							] }
 							onChange={ setTimeFrame }
+							help={
+								'last7' === timeFrame
+									? __( 'Posts published in the last 7 days (today included). Unscheduled drafts have no publish date, so they only show under All time.', 'beehiiv-sync' )
+									: undefined
+							}
 							__nextHasNoMarginBottom
 						/>
 
@@ -618,6 +665,21 @@ export default function Import( { credentialsConfigured } ) {
 								__nextHasNoMarginBottom
 							/>
 						</div>
+						<HStack justify="flex-start" spacing={ 3 } expanded={ false }>
+							<Button
+								variant="secondary"
+								onClick={ saveDefaults }
+								isBusy={ savingDefaults }
+								disabled={ savingDefaults }
+							>
+								{ __( 'Save as defaults', 'beehiiv-sync' ) }
+							</Button>
+							<span className="description">
+								{ defaultsSaved
+									? __( 'Saved — these will be pre-selected next time.', 'beehiiv-sync' )
+									: __( 'Pre-selects these choices, plus Content type and the WordPress statuses in Step 1, every time you open this page.', 'beehiiv-sync' ) }
+							</span>
+						</HStack>
 					</VStack>
 				</CardBody>
 			</Card>
