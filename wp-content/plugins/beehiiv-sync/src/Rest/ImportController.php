@@ -11,6 +11,7 @@ use BeehiivSync\Api\Exceptions\RateLimitException;
 use BeehiivSync\Api\WpHttpTransport;
 use BeehiivSync\Settings\Options;
 use BeehiivSync\Settings\Schema;
+use BeehiivSync\Support\Logger;
 use BeehiivSync\Sync\ContentSanitizer;
 use BeehiivSync\Sync\Importer;
 use BeehiivSync\Sync\ImportParams;
@@ -191,20 +192,36 @@ final class ImportController extends Controller {
 
 		$store    = \ActionScheduler::store();
 		$runner   = \ActionScheduler::runner();
-		$deadline = microtime( true ) + self::QUEUE_SLICE_SECONDS;
+		$started  = microtime( true );
+		$deadline = $started + self::QUEUE_SLICE_SECONDS;
+		$ran      = [];
 
-		while ( microtime( true ) < $deadline ) {
-			// One job per claim, so the time slice is checked between jobs.
-			$claim   = $store->stake_claim( 1, null, [], Importer::GROUP );
-			$actions = $claim->get_actions();
-			if ( $actions === [] ) {
+		try {
+			while ( microtime( true ) < $deadline ) {
+				// One job per claim, so the time slice is checked between jobs.
+				$claim   = $store->stake_claim( 1, null, [], Importer::GROUP );
+				$actions = $claim->get_actions();
+				if ( $actions === [] ) {
+					$store->release_claim( $claim );
+					break;
+				}
+				foreach ( $actions as $action_id ) {
+					$runner->process_action( $action_id, 'Beehiiv Sync import screen' );
+					$ran[] = (int) $action_id;
+				}
 				$store->release_claim( $claim );
-				return;
 			}
-			foreach ( $actions as $action_id ) {
-				$runner->process_action( $action_id, 'Beehiiv Sync import screen' );
-			}
-			$store->release_claim( $claim );
+		} catch ( \Throwable $e ) {
+			Logger::error( 'queue.drive_failed', [ 'message' => $e->getMessage(), 'ran' => $ran ] );
+			return;
 		}
+
+		Logger::info(
+			'queue.driven',
+			[
+				'ran'     => $ran,
+				'seconds' => round( microtime( true ) - $started, 1 ),
+			]
+		);
 	}
 }

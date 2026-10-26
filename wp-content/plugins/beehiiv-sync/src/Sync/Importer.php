@@ -45,6 +45,12 @@ final class Importer {
 
 		$this->runs->save( $run );
 
+		// Drop jobs left over from earlier runs (e.g. ones queued while the
+		// queue wasn't being processed). Action Scheduler runs the oldest jobs
+		// first, so a backlog would otherwise hold this run at "queued" while
+		// it re-walked every page for runs nobody is watching any more.
+		as_unschedule_all_actions( '', [], self::GROUP );
+
 		as_schedule_single_action(
 			time(),
 			self::HOOK_FETCH_PAGE,

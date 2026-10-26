@@ -3,7 +3,7 @@
  * Plugin Name:       Beehiiv Sync
  * Plugin URI:        https://github.com/matt-ramirez/beehiiv-sync
  * Description:       Sync beehiiv newsletters into WordPress posts and embed beehiiv subscribe forms.
- * Version:           0.3.3
+ * Version:           0.3.4
  * Requires at least: 6.5
  * Requires PHP:      8.1
  * Author:            Matt Ramirez
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'BS_VERSION', '0.3.3' );
+define( 'BS_VERSION', '0.3.4' );
 define( 'BS_FILE', __FILE__ );
 define( 'BS_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BS_URL', plugin_dir_url( __FILE__ ) );
