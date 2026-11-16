@@ -13,6 +13,41 @@ class NNR_Taxonomy {
 	public function __construct() {
 		add_action( 'init', array( $this, 'register' ) );
 		add_action( 'init', array( $this, 'maybe_seed_terms' ), 20 );
+		add_action( 'init', array( $this, 'maybe_merge_duplicate_events_term' ), 25 );
+	}
+
+	/**
+	 * An earlier version registered a second "Events" term (slug "events") as
+	 * the default, next to the original "Events" term (slug "pasadena-events").
+	 * WordPress won't delete the default term, so that duplicate was stuck.
+	 * Make the original the default, move any events across, drop the duplicate.
+	 */
+	public function maybe_merge_duplicate_events_term() {
+		if ( get_option( 'nnr_events_merged_events_term_v1' ) ) {
+			return;
+		}
+
+		$keep = get_term_by( 'slug', 'pasadena-events', self::TAXONOMY );
+		$dupe = get_term_by( 'slug', 'events', self::TAXONOMY );
+		if ( ! $keep ) {
+			// Nothing to merge into; leave things alone and don't retry forever.
+			update_option( 'nnr_events_merged_events_term_v1', 1 );
+			return;
+		}
+
+		update_option( 'default_term_' . self::TAXONOMY, (int) $keep->term_id );
+
+		if ( $dupe ) {
+			$post_ids = get_objects_in_term( $dupe->term_id, self::TAXONOMY );
+			if ( ! is_wp_error( $post_ids ) ) {
+				foreach ( $post_ids as $post_id ) {
+					wp_set_object_terms( (int) $post_id, (int) $keep->term_id, self::TAXONOMY, true );
+				}
+			}
+			wp_delete_term( $dupe->term_id, self::TAXONOMY );
+		}
+
+		update_option( 'nnr_events_merged_events_term_v1', 1 );
 	}
 
 	/**
@@ -62,7 +97,7 @@ class NNR_Taxonomy {
 				'show_in_rest'       => true,
 				'default_term'       => array(
 					'name' => __( 'Events', 'nnr-events' ),
-					'slug' => 'events',
+					'slug' => 'pasadena-events',
 				),
 			)
 		);
@@ -73,8 +108,7 @@ class NNR_Taxonomy {
 	 */
 	public function seed_terms() {
 		$terms = array(
-			'events'           => __( 'Events', 'nnr-events' ),
-			'pasadena-events' => __( 'Pasadena Events', 'nnr-events' ),
+			'pasadena-events' => __( 'Events', 'nnr-events' ),
 			'live-music'      => __( 'Live Music', 'nnr-events' ),
 			'trivia'          => __( 'Trivia', 'nnr-events' ),
 			'plays-theater'   => __( 'Plays & Theater', 'nnr-events' ),
