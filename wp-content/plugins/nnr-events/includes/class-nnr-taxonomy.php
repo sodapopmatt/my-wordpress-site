@@ -7,8 +7,24 @@ class NNR_Taxonomy {
 
 	const TAXONOMY = 'event_category';
 
+	/** Bump when seed_terms() gains new terms, so already-active sites get them. */
+	const SEED_OPTION = 'nnr_events_terms_seeded_v2';
+
 	public function __construct() {
 		add_action( 'init', array( $this, 'register' ) );
+		add_action( 'init', array( $this, 'maybe_seed_terms' ), 20 );
+	}
+
+	/**
+	 * Activation only fires on a fresh activate, not when a deploy updates
+	 * an already-active plugin, so new default terms are seeded once here.
+	 */
+	public function maybe_seed_terms() {
+		if ( get_option( self::SEED_OPTION ) ) {
+			return;
+		}
+		$this->seed_terms();
+		update_option( self::SEED_OPTION, 1 );
 	}
 
 	public function register() {
@@ -61,6 +77,8 @@ class NNR_Taxonomy {
 			'pasadena-events' => __( 'Pasadena Events', 'nnr-events' ),
 			'live-music'      => __( 'Live Music', 'nnr-events' ),
 			'trivia'          => __( 'Trivia', 'nnr-events' ),
+			'community'       => __( 'Community', 'nnr-events' ),
+			'plays-theater'   => __( 'Plays & Theater', 'nnr-events' ),
 		);
 
 		foreach ( $terms as $slug => $name ) {

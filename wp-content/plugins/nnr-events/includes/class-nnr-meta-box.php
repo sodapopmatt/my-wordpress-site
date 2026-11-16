@@ -356,8 +356,21 @@ class NNR_Meta_Box {
 			return;
 		}
 
-		$is_full_form = isset( $_POST['_nnr_full_form'] );
+		self::apply_fields( $post_id, wp_unslash( $_POST ), isset( $_POST['_nnr_full_form'] ) );
+	}
 
+	/**
+	 * Writes event meta from an already-unslashed input array using the same
+	 * keys the admin forms post (_nnr_venue, _nnr_sessions, ...). Shared by
+	 * save() above and the REST endpoint (NNR_REST), so events created by the
+	 * Events Hopper go through exactly the same sanitization and day-list
+	 * logic as hand-entered ones.
+	 *
+	 * $is_full_form: true when $input carries every field (absent checkbox =
+	 * unchecked, dates come from the _nnr_sessions day list); false for
+	 * Quick Edit's partial set.
+	 */
+	public static function apply_fields( $post_id, array $input, $is_full_form ) {
 		// The full forms post a day list instead of the flat date fields —
 		// save_days() derives those. Quick Edit still posts the flat fields
 		// directly, except for a multi-session event, where they'd just desync
@@ -378,23 +391,23 @@ class NNR_Meta_Box {
 				// smaller subset of fields — an absent checkbox there just
 				// means it wasn't part of that form, not that it was cleared.
 				if ( $is_full_form ) {
-					update_post_meta( $post_id, $key, isset( $_POST[ $key ] ) ? '1' : '0' );
+					update_post_meta( $post_id, $key, ! empty( $input[ $key ] ) ? '1' : '0' );
 				}
 				continue;
 			}
 
-			if ( ! isset( $_POST[ $key ] ) ) {
+			if ( ! isset( $input[ $key ] ) ) {
 				continue;
 			}
 
-			$raw = wp_unslash( $_POST[ $key ] );
+			$raw = $input[ $key ];
 
 			switch ( $field['type'] ) {
 				case 'date':
-					$value = $this->sanitize_date( $raw );
+					$value = self::sanitize_date( $raw );
 					break;
 				case 'time':
-					$value = $this->sanitize_time( $raw );
+					$value = self::sanitize_time( $raw );
 					break;
 				case 'url':
 					$value = esc_url_raw( $raw );
@@ -415,7 +428,7 @@ class NNR_Meta_Box {
 		// The day list is only in the full forms (Quick Edit has none) — skip
 		// so a Quick Edit save can't wipe it out.
 		if ( $is_full_form ) {
-			$this->save_days( $post_id );
+			self::save_days( $post_id, $input );
 		}
 
 		// Keeps the query-support field in sync with whatever start date/
@@ -432,19 +445,22 @@ class NNR_Meta_Box {
 	 * sorting, and structured data (which all read those flat fields) stay
 	 * correct without needing to know sessions exist at all.
 	 */
-	private function save_days( $post_id ) {
-		$raw_days = isset( $_POST['_nnr_sessions'] ) && is_array( $_POST['_nnr_sessions'] ) ? wp_unslash( $_POST['_nnr_sessions'] ) : array();
+	private static function save_days( $post_id, array $input ) {
+		$raw_days = isset( $input['_nnr_sessions'] ) && is_array( $input['_nnr_sessions'] ) ? $input['_nnr_sessions'] : array();
 
 		$days = array();
 		foreach ( $raw_days as $row ) {
-			$date = $this->sanitize_date( isset( $row['date'] ) ? $row['date'] : '' );
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$date = self::sanitize_date( isset( $row['date'] ) ? $row['date'] : '' );
 			if ( '' === $date ) {
 				continue;
 			}
 			$days[] = array(
 				'date'       => $date,
-				'start_time' => $this->sanitize_time( isset( $row['start_time'] ) ? $row['start_time'] : '' ),
-				'end_time'   => $this->sanitize_time( isset( $row['end_time'] ) ? $row['end_time'] : '' ),
+				'start_time' => self::sanitize_time( isset( $row['start_time'] ) ? $row['start_time'] : '' ),
+				'end_time'   => self::sanitize_time( isset( $row['end_time'] ) ? $row['end_time'] : '' ),
 			);
 		}
 
@@ -463,7 +479,7 @@ class NNR_Meta_Box {
 		$last  = $days[ count( $days ) - 1 ];
 
 		if ( 1 === count( $days ) ) {
-			$runs_through = $this->sanitize_date( isset( $_POST['_nnr_runs_through'] ) ? wp_unslash( $_POST['_nnr_runs_through'] ) : '' );
+			$runs_through = self::sanitize_date( isset( $input['_nnr_runs_through'] ) ? $input['_nnr_runs_through'] : '' );
 			$end_date     = $runs_through > $first['date'] ? $runs_through : $first['date'];
 
 			update_post_meta( $post_id, '_nnr_multi_session', '0' );
@@ -481,8 +497,8 @@ class NNR_Meta_Box {
 		update_post_meta( $post_id, '_nnr_end_time', $last['end_time'] );
 	}
 
-	private function sanitize_date( $value ) {
-		$value = trim( $value );
+	public static function sanitize_date( $value ) {
+		$value = trim( (string) $value );
 		if ( '' === $value ) {
 			return '';
 		}
@@ -490,8 +506,8 @@ class NNR_Meta_Box {
 		return ( $d && $d->format( 'Y-m-d' ) === $value ) ? $value : '';
 	}
 
-	private function sanitize_time( $value ) {
-		$value = trim( $value );
+	public static function sanitize_time( $value ) {
+		$value = trim( (string) $value );
 		if ( '' === $value ) {
 			return '';
 		}
