@@ -77,7 +77,6 @@ class NNR_Taxonomy {
 			'pasadena-events' => __( 'Pasadena Events', 'nnr-events' ),
 			'live-music'      => __( 'Live Music', 'nnr-events' ),
 			'trivia'          => __( 'Trivia', 'nnr-events' ),
-			'community'       => __( 'Community', 'nnr-events' ),
 			'plays-theater'   => __( 'Plays & Theater', 'nnr-events' ),
 		);
 
