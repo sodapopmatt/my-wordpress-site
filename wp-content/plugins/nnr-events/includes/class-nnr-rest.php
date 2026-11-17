@@ -331,6 +331,11 @@ class NNR_REST {
 			if ( '' === $slug ) {
 				continue;
 			}
+			// "events" is the old name for the general category (slug pasadena-events).
+			// Never auto-create it as a second category.
+			if ( 'events' === $slug ) {
+				$slug = 'pasadena-events';
+			}
 			$term = get_term_by( 'slug', $slug, NNR_Taxonomy::TAXONOMY );
 			if ( ! $term && current_user_can( 'manage_categories' ) ) {
 				$created = wp_insert_term( ucwords( str_replace( '-', ' ', $slug ) ), NNR_Taxonomy::TAXONOMY, array( 'slug' => $slug ) );

@@ -23,7 +23,7 @@ class NNR_Taxonomy {
 	 * Make the original the default, move any events across, drop the duplicate.
 	 */
 	public function maybe_merge_duplicate_events_term() {
-		if ( get_option( 'nnr_events_merged_events_term_v1' ) ) {
+		if ( get_option( 'nnr_events_merged_events_term_v2' ) ) {
 			return;
 		}
 
@@ -31,7 +31,7 @@ class NNR_Taxonomy {
 		$dupe = get_term_by( 'slug', 'events', self::TAXONOMY );
 		if ( ! $keep ) {
 			// Nothing to merge into; leave things alone and don't retry forever.
-			update_option( 'nnr_events_merged_events_term_v1', 1 );
+			update_option( 'nnr_events_merged_events_term_v2', 1 );
 			return;
 		}
 
@@ -47,7 +47,7 @@ class NNR_Taxonomy {
 			wp_delete_term( $dupe->term_id, self::TAXONOMY );
 		}
 
-		update_option( 'nnr_events_merged_events_term_v1', 1 );
+		update_option( 'nnr_events_merged_events_term_v2', 1 );
 	}
 
 	/**
